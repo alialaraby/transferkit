@@ -6,11 +6,61 @@ export interface Evidence {
   description?: string;
 }
 
-export interface Finding<T = unknown> {
+export interface Finding<TData = unknown, TKind extends string = string> {
   id: string;
-  kind: string;
-  data: T;
+  kind: TKind;
+  data: TData;
   evidence: Evidence[];
+}
+
+export interface MessagingConsumer {
+  id: string;
+  kind: "messaging.consumer";
+  name: string;
+  technology: string;
+  queue?: string;
+  exchange?: string;
+  routingKey?: string;
+  handler: string;
+  evidence: Evidence[];
+}
+
+export interface MessagingSystem {
+  technology: string;
+  consumers: MessagingConsumer[];
+}
+
+export function buildMessagingSystems(
+  consumers: readonly MessagingConsumer[],
+): MessagingSystem[] {
+  const systems = new Map<string, MessagingSystem>();
+
+  for (const consumer of consumers) {
+    const system = systems.get(consumer.technology);
+    if (system === undefined) {
+      systems.set(consumer.technology, {
+        technology: consumer.technology,
+        consumers: [consumer],
+      });
+    } else {
+      system.consumers.push(consumer);
+    }
+  }
+
+  return [...systems.values()];
+}
+
+export type RequirementPriority = "critical" | "recommended" | "optional";
+
+export interface KnowledgeRequirement<
+  TEntityKind extends string = string,
+  TField extends string = string,
+> {
+  id: string;
+  entityKind: TEntityKind;
+  field: TField;
+  title: string;
+  priority: RequirementPriority;
 }
 
 export interface TransferKitProject {

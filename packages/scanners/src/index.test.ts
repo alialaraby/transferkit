@@ -28,7 +28,62 @@ describe("detectProject", () => {
       "framework.nestjs",
       "messaging.rabbitmq",
     ]);
-    expect(findings.every((finding) => finding.evidence.length > 0)).toBe(true);
+    expect(findings).toEqual([
+      {
+        id: "technology.nodejs",
+        kind: "technology",
+        data: { name: "Node.js" },
+        evidence: [
+          {
+            file: "package.json",
+            line: 1,
+            description: "package.json identifies this as a Node.js package",
+          },
+        ],
+      },
+      {
+        id: "language.typescript",
+        kind: "language",
+        data: { name: "TypeScript" },
+        evidence: [
+          {
+            file: "tsconfig.json",
+            line: 1,
+            description: "TypeScript configuration is present",
+          },
+          {
+            file: "package.json",
+            line: 8,
+            description: "Dependency typescript@^5.9.0 is declared",
+          },
+        ],
+      },
+      {
+        id: "framework.nestjs",
+        kind: "framework",
+        data: { name: "NestJS" },
+        evidence: [
+          {
+            file: "package.json",
+            line: 5,
+            description: "Dependency @nestjs/core@^11.0.0 is declared",
+          },
+        ],
+      },
+      {
+        id: "messaging.rabbitmq",
+        kind: "messaging",
+        data: { name: "RabbitMQ" },
+        evidence: [
+          {
+            file: "package.json",
+            line: 4,
+            description:
+              "Dependency @golevelup/nestjs-rabbitmq@^5.7.0 is declared",
+          },
+        ],
+      },
+    ]);
   });
 
   it("detects only Node.js in a plain Node.js project", async () => {
@@ -69,6 +124,7 @@ describe("discoverRabbitMqConsumers", () => {
 
     expect(findings).toHaveLength(1);
     expect(findings[0]).toMatchObject({
+      id: "messaging.consumer:src/shipment.consumer.ts:ShipmentConsumer.handleShipmentUpdate",
       kind: "messaging.consumer",
       data: {
         name: "handleShipmentUpdate",
@@ -79,7 +135,15 @@ describe("discoverRabbitMqConsumers", () => {
       evidence: [
         {
           file: "src/shipment.consumer.ts",
-          line: 9,
+          line: 4,
+          description:
+            "RabbitSubscribe decorator marks this method as a RabbitMQ consumer",
+        },
+        {
+          file: "src/shipment.consumer.ts",
+          line: 1,
+          description:
+            "RabbitSubscribe is imported from @golevelup/nestjs-rabbitmq",
         },
       ],
     });
@@ -94,6 +158,13 @@ describe("discoverRabbitMqConsumers", () => {
       "billOrder",
       "refundOrder",
     ]);
+    expect(findings.map((finding) => finding.id)).toEqual([
+      "messaging.consumer:src/consumers.ts:Consumers.billOrder",
+      "messaging.consumer:src/consumers.ts:Consumers.refundOrder",
+    ]);
+    expect(findings.every((finding) => finding.evidence.length === 2)).toBe(
+      true,
+    );
   });
 
   it("keeps statically available metadata and safely skips dynamic metadata", () => {
