@@ -108,13 +108,13 @@ describe("Milestone 3 RabbitMQ workflow", () => {
 
     const onboarded = await command(directory, ["onboard", "plan"]);
     expect(onboarded.exitCode).toBe(0);
-    expect(onboarded.stdout[0]).toContain("handler: handleShipmentUpdate");
-    expect(onboarded.stdout[0]).toContain("routing key: shipment.updated");
+    expect(onboarded.stdout[0]).toContain("handler `handleShipmentUpdate`");
+    expect(onboarded.stdout[0]).toContain("`shipment.updated` routing flow");
     expect(onboarded.stdout[0]).toContain(
-      "Review failure behavior — Dead-letters after retries; replay from the DLQ",
+      "Review documented failure behavior for `shipment-webhooks` — Dead-letters after retries; replay from the DLQ",
     );
     expect(onboarded.stdout[0]).toContain(
-      "Identify operational owner — Missing handover knowledge: Operational owner",
+      "⚠ Operational owner for shipment-webhooks was not documented during handover.",
     );
 
     await expect(

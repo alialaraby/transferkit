@@ -12,10 +12,18 @@ export async function scanHandover(
   workingDirectory: string,
 ): Promise<RepositoryFinding[]> {
   const findings = await scanRepository(workingDirectory);
+  const entities = entitiesFromFindings(findings);
+  const existing = await readHandoverState(workingDirectory);
+
+  await writeHandoverState(workingDirectory, { ...existing, entities });
+  return findings;
+}
+
+export function entitiesFromFindings(
+  findings: readonly RepositoryFinding[],
+): HandoverEntity[] {
   const consumers = findings.filter(isMessagingConsumerFinding);
-  const messagingEntities: HandoverEntity[] = buildRabbitMqMessagingModel(
-    consumers,
-  )
+  const messagingEntities = buildRabbitMqMessagingModel(consumers)
     .flatMap(({ consumers: systemConsumers }) => systemConsumers)
     .map(
       ({
@@ -42,10 +50,14 @@ export async function scanHandover(
     ...messagingEntities,
     ...findings.flatMap(toHandoverEntity),
   ]);
-  const existing = await readHandoverState(workingDirectory);
-
-  await writeHandoverState(workingDirectory, { ...existing, entities });
-  return findings;
+  const hasTypeOrm = findings.some(
+    (finding) => finding.kind === "orm" && finding.data.name === "TypeORM",
+  );
+  return entities.map((entity) =>
+    entity.kind === "database" && hasTypeOrm
+      ? { ...entity, technology: `${entity.technology ?? entity.name}/TypeORM` }
+      : entity,
+  );
 }
 
 function toHandoverEntity(finding: RepositoryFinding): HandoverEntity[] {

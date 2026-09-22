@@ -2,7 +2,9 @@ import { packageName as corePackageName } from "@transferkit/core";
 import type {
   HandoverAuditResult,
   HandoverState,
-  MessagingOnboardingPlan,
+  OnboardingPlan,
+  OnboardingProgressState,
+  OwnershipReadinessEvidence,
 } from "@transferkit/core";
 import { sanitizeHandoverValue } from "./handover-package.js";
 
@@ -40,25 +42,75 @@ export function renderHandoverAudit(result: HandoverAuditResult): string {
   ].join("\n");
 }
 
-export function renderMessagingOnboardingPlan(
-  plan: MessagingOnboardingPlan,
-): string {
-  if (plan.consumers.length === 0) {
-    return `${plan.category}\n\nNo messaging consumers found.`;
+export function renderOnboardingPlan(plan: OnboardingPlan): string {
+  if (plan.stages.length === 0)
+    return "Onboarding Plan\n\nNo repository-specific onboarding tasks found.";
+  const lines = [
+    "Onboarding Plan",
+    "",
+    plan.knowledgeMode === "repository-only"
+      ? "Knowledge source: repository only; human handover knowledge is unknown."
+      : "Knowledge source: repository and human handover.",
+  ];
+  for (const stage of plan.stages) {
+    lines.push("", stage.title, "");
+    for (const task of stage.tasks) {
+      lines.push(
+        `[ ] ${task.title}${task.description === undefined ? "" : ` — ${task.description}`}`,
+      );
+    }
   }
+  if (plan.missingInformation.length > 0) {
+    lines.push("", "Missing handover information", "");
+    lines.push(...plan.missingInformation.map(({ message }) => `⚠ ${message}`));
+  }
+  return lines.join("\n");
+}
 
-  return [
-    plan.category,
-    ...plan.consumers.flatMap((consumer) => [
-      "",
-      consumer.entityName,
-      "",
-      ...consumer.tasks.map(
-        ({ title, detail }) =>
-          `[ ] ${title}${detail === undefined ? "" : ` — ${detail}`}`,
+export function renderOnboardingStatus(
+  plan: OnboardingPlan,
+  progress: OnboardingProgressState,
+  readiness: OwnershipReadinessEvidence,
+): string {
+  const progressById = new Map(
+    progress.tasks.map((task) => [task.taskId, task]),
+  );
+  const lines = plan.stages.map((stage) => {
+    const done = stage.tasks.filter(({ id }) => {
+      const status = progressById.get(id)?.status;
+      return status === "completed" || status === "skipped";
+    }).length;
+    return `${stage.title.padEnd(23)} ${done}/${stage.tasks.length}`;
+  });
+  const next = plan.stages
+    .flatMap(({ tasks }) => tasks)
+    .find(({ id }) => {
+      const status = progressById.get(id)?.status ?? "not-started";
+      return status === "in-progress" || status === "not-started";
+    });
+  if (next !== undefined) lines.push("", `Next: ${next.title} (${next.id})`);
+  else if (lines.length > 0)
+    lines.push("", "All onboarding tasks are complete or skipped.");
+  if (readiness.items.length > 0) {
+    lines.push("", "Ownership-readiness evidence", "");
+    lines.push(
+      ...readiness.items.map(
+        ({ status, statement }) => `${evidenceMarker(status)} ${statement}`,
       ),
-    ]),
-  ].join("\n");
+    );
+  }
+  return lines.length === 0
+    ? "No repository-specific onboarding tasks found."
+    : lines.join("\n");
+}
+
+function evidenceMarker(
+  status: OwnershipReadinessEvidence["items"][number]["status"],
+): string {
+  if (status === "confirmed") return "✓";
+  if (status === "skipped") return "–";
+  if (status === "unknown") return "?";
+  return "✗";
 }
 
 export function renderMessagingMarkdown(

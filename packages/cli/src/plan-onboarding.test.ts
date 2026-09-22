@@ -1,14 +1,18 @@
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import type { HandoverEntity, HandoverState } from "@transferkit/core";
+import { renderOnboardingPlan } from "@transferkit/renderers";
+import { planOnboarding as createOnboardingPlan } from "@transferkit/standards";
+import { planOnboarding } from "./plan-onboarding.js";
 
-import type { HandoverState } from "@transferkit/core";
-import { renderMessagingOnboardingPlan } from "@transferkit/renderers";
-
-import { planMessagingOnboarding } from "@transferkit/standards";
-
-const entityId = "messaging.consumer:shipments";
-const consumer = {
-  id: entityId,
-  kind: "messaging.consumer" as const,
+const fixtures = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "../../../fixtures",
+);
+const consumer: HandoverEntity = {
+  id: "messaging.consumer:shipments",
+  kind: "messaging.consumer",
   name: "shipment-webhooks",
   technology: "rabbitmq",
   queue: "shipment-webhooks",
@@ -17,110 +21,110 @@ const consumer = {
   handler: "handleShipmentUpdate",
 };
 
-describe("planMessagingOnboarding", () => {
-  it("creates a useful repository-only messaging plan", () => {
-    const plan = planMessagingOnboarding(stateWithKnowledge([]));
-    const output = renderMessagingOnboardingPlan(plan);
-
-    expect(output).toContain("[ ] Locate the consumer implementation");
-    expect(output).toContain("handler: handleShipmentUpdate");
-    expect(output).toContain("queue: shipment-webhooks");
-    expect(output).toContain("exchange: shipment");
-    expect(output).toContain("routing key: shipment.updated");
-    expect(
-      plan.consumers[0]?.tasks.filter(
-        ({ missingKnowledge }) => missingKnowledge,
-      ),
-    ).toHaveLength(4);
+describe("onboarding planning", () => {
+  it("creates a repository-only plan by scanning without handover state", async () => {
+    const plan = await planOnboarding(join(fixtures, "milestone-four"));
+    const output = renderOnboardingPlan(plan);
+    expect(output).toContain("Review PostgreSQL/TypeORM data layer");
+    expect(output).toContain("Review scheduled job `Jobs.hourly`");
+    expect(output).toContain("Inspect Docker/runtime setup");
+    expect(output).toContain("Review detected GitHub Actions `CI` workflow");
+    expect(plan.missingInformation).toEqual([]);
   });
 
-  it("enriches every knowledge task when handover knowledge is complete", () => {
-    const plan = planMessagingOnboarding(completeState());
-    const output = renderMessagingOnboardingPlan(plan);
-
-    expect(output).toContain("Review criticality — critical");
-    expect(output).toContain(
-      "Review failure behavior — Dead-letters after retries",
+  it("enriches tasks with documented handover knowledge", () => {
+    const plan = createOnboardingPlan(
+      state([
+        {
+          entityId: consumer.id,
+          field: "criticality",
+          value: "critical to shipment notifications",
+        },
+        {
+          entityId: consumer.id,
+          field: "recoveryProcedure",
+          value: "Replay the DLQ after checking idempotency",
+        },
+        {
+          entityId: consumer.id,
+          field: "operationalOwner",
+          value: "Fulfilment Platform",
+        },
+      ]),
+      { handoverAvailable: true },
     );
-    expect(output).toContain(
-      "Review or practice recovery/replay — Replay the DLQ",
-    );
-    expect(output).toContain("Identify operational owner — Platform");
-    expect(output).not.toContain("Missing handover knowledge");
+    const output = renderOnboardingPlan(plan);
+    expect(output).toContain("critical to shipment notifications");
+    expect(output).toContain("Replay the DLQ after checking idempotency");
+    expect(output).toContain("Fulfilment Platform");
   });
 
-  it("explicitly identifies missing recovery information", () => {
-    const value = completeState();
-    value.knowledge = value.knowledge.filter(
-      ({ field }) => field !== "recoveryProcedure",
+  it("generates useful stages in the canonical order", () => {
+    const plan = createOnboardingPlan(
+      state([
+        { entityId: consumer.id, field: "criticality", value: "critical" },
+      ]),
+      { handoverAvailable: true },
     );
-
-    const output = renderMessagingOnboardingPlan(
-      planMessagingOnboarding(value),
-    );
-
-    expect(output).toContain(
-      "Review or practice recovery/replay — Missing handover knowledge: Recovery / replay procedure",
-    );
-    expect(output).toContain(
-      "Review failure behavior — Dead-letters after retries",
-    );
-  });
-
-  it("creates separate tasks for multiple consumers", () => {
-    const value = stateWithKnowledge([]);
-    value.entities.push({
-      ...consumer,
-      id: "messaging.consumer:billing",
-      name: "billing",
-      queue: "billing",
-      handler: "handleBilling",
-    });
-
-    const plan = planMessagingOnboarding(value);
-
-    expect(plan.consumers.map(({ entityName }) => entityName)).toEqual([
-      "shipment-webhooks",
-      "billing",
+    expect(plan.stages.map(({ title }) => title)).toEqual([
+      "Understand Why",
+      "Understand the System",
+      "Trace It",
     ]);
-    expect(plan.consumers.every(({ tasks }) => tasks.length === 6)).toBe(true);
   });
 
-  it("reports clearly when there are no messaging consumers", () => {
-    const plan = planMessagingOnboarding(stateWithKnowledge([]));
-    plan.consumers = [];
+  it("omits stages with no relevant tasks", () => {
+    const plan = createOnboardingPlan(state([]));
+    expect(plan.stages.map(({ title }) => title)).toEqual([
+      "Understand the System",
+      "Trace It",
+    ]);
+    expect(plan.stages.every(({ tasks }) => tasks.length > 0)).toBe(true);
+  });
 
-    expect(renderMessagingOnboardingPlan(plan)).toBe(
-      "Messaging\n\nNo messaging consumers found.",
+  it("generates concrete tasks from messaging entity details", () => {
+    const output = renderOnboardingPlan(createOnboardingPlan(state([])));
+    expect(output).toContain(
+      "Locate the RabbitMQ consumer `shipment-webhooks`",
+    );
+    expect(output).toContain("handler `handleShipmentUpdate`");
+    expect(output).toContain("Trace the `shipment.updated` routing flow");
+    expect(output).toContain(
+      "exchange `shipment` to queue `shipment-webhooks`",
     );
   });
 
-  it("does not invent knowledge values when none exist", () => {
-    const output = renderMessagingOnboardingPlan(
-      planMessagingOnboarding(stateWithKnowledge([])),
+  it("surfaces critical missing handover knowledge but not optional gaps", () => {
+    const plan = createOnboardingPlan(state([]), { handoverAvailable: true });
+    const messages = plan.missingInformation.map(({ message }) => message);
+    expect(messages).toContain(
+      "Recovery / replay procedure for shipment-webhooks was not documented during handover.",
     );
+    expect(messages).toHaveLength(4);
+    expect(messages.join(" ")).not.toContain("optional");
+  });
 
-    expect(output.match(/Missing handover knowledge/g)).toHaveLength(4);
-    expect(output).not.toContain("unknown team");
-    expect(output).not.toContain("automatic replay");
+  it("does not invent handover information", () => {
+    const output = renderOnboardingPlan(
+      createOnboardingPlan(state([]), { handoverAvailable: false }),
+    );
+    expect(output).not.toContain("owner");
+    expect(output).not.toContain("replay");
+    expect(output).not.toContain("critical");
+  });
+
+  it("covers multiple discovered repository domains", async () => {
+    const plan = await planOnboarding(join(fixtures, "milestone-four"));
+    expect(plan.stages.map(({ title }) => title)).toEqual([
+      "Understand the System",
+      "Run It",
+      "Trace It",
+      "Change It",
+    ]);
+    expect(plan.stages.flatMap(({ tasks }) => tasks).length).toBeGreaterThan(6);
   });
 });
 
-function completeState(): HandoverState {
-  return stateWithKnowledge([
-    { entityId, field: "criticality", value: "critical" },
-    {
-      entityId,
-      field: "failureBehavior",
-      value: "Dead-letters after retries",
-    },
-    { entityId, field: "recoveryProcedure", value: "Replay the DLQ" },
-    { entityId, field: "operationalOwner", value: "Platform" },
-  ]);
-}
-
-function stateWithKnowledge(
-  knowledge: HandoverState["knowledge"],
-): HandoverState {
+function state(knowledge: HandoverState["knowledge"]): HandoverState {
   return { schemaVersion: 1, entities: [consumer], knowledge };
 }
