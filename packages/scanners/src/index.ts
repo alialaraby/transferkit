@@ -6,22 +6,36 @@ import type { Evidence, Finding } from "@transferkit/core";
 
 import {
   discoverRabbitMqConsumersInAst,
-  type MessagingConsumerData,
+  type MessagingConsumerFinding,
 } from "./rabbitmq-consumers.js";
 import { createTypeScriptAst } from "./typescript-ast.js";
 
 export { discoverRabbitMqConsumers } from "./rabbitmq-consumers.js";
-export type { MessagingConsumerData } from "./rabbitmq-consumers.js";
+export { buildRabbitMqMessagingModel } from "./messaging-model.js";
+export type {
+  MessagingConsumerData,
+  MessagingConsumerFinding,
+} from "./rabbitmq-consumers.js";
 
 export const packageName = "@transferkit/scanners";
 export const dependencies = [corePackageName] as const;
 
-interface TechnologyData {
+export interface TechnologyData {
   name: "Node.js" | "TypeScript" | "NestJS" | "RabbitMQ";
 }
 
+export type TechnologyFindingKind =
+  "technology" | "language" | "framework" | "messaging";
+
+export type TechnologyFinding = Finding<TechnologyData, TechnologyFindingKind>;
+
 type PackageJson = Record<string, unknown>;
-type Dependencies = ReadonlyMap<string, string>;
+interface DependencyDeclaration {
+  version: string;
+  line?: number;
+}
+
+type Dependencies = ReadonlyMap<string, DependencyDeclaration>;
 
 const rabbitMqPackages = ["@golevelup/nestjs-rabbitmq", "amqplib"] as const;
 
@@ -34,27 +48,33 @@ export class RepositoryScanError extends Error {
 
 export async function detectProject(
   repositoryDirectory: string,
-): Promise<Finding<TechnologyData>[]> {
-  const packageJson = await loadPackageJson(repositoryDirectory);
-  if (packageJson === undefined) {
+): Promise<TechnologyFinding[]> {
+  const loadedPackageJson = await loadPackageJson(repositoryDirectory);
+  if (loadedPackageJson === undefined) {
     return [];
   }
 
-  const dependencies = collectDependencies(packageJson);
-  const findings: Finding<TechnologyData>[] = [
-    technologyFinding(
-      "technology.nodejs",
-      "technology",
-      "Node.js",
-      packageEvidence("package.json identifies this as a Node.js package"),
-    ),
+  const dependencies = collectDependencies(
+    loadedPackageJson.value,
+    loadedPackageJson.contents,
+  );
+  const findings: TechnologyFinding[] = [
+    technologyFinding("technology.nodejs", "technology", "Node.js", [
+      packageEvidence("package.json identifies this as a Node.js package", 1),
+    ]),
   ];
 
   const hasTsConfig = await isFile(repositoryDirectory, "tsconfig.json");
   if (hasTsConfig || dependencies.has("typescript")) {
-    const evidence = hasTsConfig
-      ? fileEvidence("tsconfig.json", "TypeScript configuration is present")
-      : dependencyEvidence("typescript", dependencies);
+    const evidence: Evidence[] = [];
+    if (hasTsConfig) {
+      evidence.push(
+        fileEvidence("tsconfig.json", "TypeScript configuration is present", 1),
+      );
+    }
+    if (dependencies.has("typescript")) {
+      evidence.push(dependencyEvidence("typescript", dependencies));
+    }
     findings.push(
       technologyFinding(
         "language.typescript",
@@ -68,10 +88,15 @@ export async function detectProject(
   const hasNestConfig = await isFile(repositoryDirectory, "nest-cli.json");
   const nestPackage = firstDependency(dependencies, ["@nestjs/core"]);
   if (hasNestConfig || nestPackage !== undefined) {
-    const evidence =
-      nestPackage !== undefined
-        ? dependencyEvidence(nestPackage, dependencies)
-        : fileEvidence("nest-cli.json", "NestJS CLI configuration is present");
+    const evidence: Evidence[] = [];
+    if (nestPackage !== undefined) {
+      evidence.push(dependencyEvidence(nestPackage, dependencies));
+    }
+    if (hasNestConfig) {
+      evidence.push(
+        fileEvidence("nest-cli.json", "NestJS CLI configuration is present", 1),
+      );
+    }
     findings.push(
       technologyFinding("framework.nestjs", "framework", "NestJS", evidence),
     );
@@ -80,12 +105,9 @@ export async function detectProject(
   const rabbitMqPackage = firstDependency(dependencies, rabbitMqPackages);
   if (rabbitMqPackage !== undefined) {
     findings.push(
-      technologyFinding(
-        "messaging.rabbitmq",
-        "messaging",
-        "RabbitMQ",
+      technologyFinding("messaging.rabbitmq", "messaging", "RabbitMQ", [
         dependencyEvidence(rabbitMqPackage, dependencies),
-      ),
+      ]),
     );
   }
 
@@ -94,7 +116,7 @@ export async function detectProject(
 
 export async function scanRepository(
   repositoryDirectory: string,
-): Promise<Finding<TechnologyData | MessagingConsumerData>[]> {
+): Promise<Array<TechnologyFinding | MessagingConsumerFinding>> {
   const ast = createTypeScriptAst(repositoryDirectory);
   const [projectFindings, consumerFindings] = await Promise.all([
     detectProject(repositoryDirectory),
@@ -105,7 +127,7 @@ export async function scanRepository(
 
 async function loadPackageJson(
   repositoryDirectory: string,
-): Promise<PackageJson | undefined> {
+): Promise<{ value: PackageJson; contents: string } | undefined> {
   const file = join(repositoryDirectory, "package.json");
   let contents: string;
 
@@ -133,7 +155,7 @@ async function loadPackageJson(
     ) {
       throw new Error("expected a JSON object");
     }
-    return parsed as PackageJson;
+    return { value: parsed as PackageJson, contents };
   } catch (error) {
     throw new RepositoryScanError(
       `Malformed package.json: ${errorMessage(error)}`,
@@ -144,8 +166,11 @@ async function loadPackageJson(
   }
 }
 
-function collectDependencies(packageJson: PackageJson): Dependencies {
-  const dependencies = new Map<string, string>();
+function collectDependencies(
+  packageJson: PackageJson,
+  contents: string,
+): Dependencies {
+  const dependencies = new Map<string, DependencyDeclaration>();
 
   for (const sectionName of ["dependencies", "devDependencies"] as const) {
     const section = packageJson[sectionName];
@@ -164,7 +189,11 @@ function collectDependencies(packageJson: PackageJson): Dependencies {
 
     for (const [name, version] of Object.entries(section)) {
       if (typeof version === "string") {
-        dependencies.set(name, version);
+        const line = propertyLine(contents, name, version);
+        dependencies.set(name, {
+          version,
+          ...(line === undefined ? {} : { line }),
+        });
       }
     }
   }
@@ -191,28 +220,50 @@ async function isFile(
 
 function technologyFinding(
   id: string,
-  kind: string,
+  kind: TechnologyFindingKind,
   name: TechnologyData["name"],
-  evidence: Evidence,
-): Finding<TechnologyData> {
-  return { id, kind, data: { name }, evidence: [evidence] };
+  evidence: Evidence[],
+): TechnologyFinding {
+  return { id, kind, data: { name }, evidence };
 }
 
-function packageEvidence(description: string): Evidence {
-  return fileEvidence("package.json", description);
+function packageEvidence(description: string, line?: number): Evidence {
+  return fileEvidence("package.json", description, line);
 }
 
 function dependencyEvidence(
   name: string,
   dependencies: Dependencies,
 ): Evidence {
+  const declaration = dependencies.get(name);
   return packageEvidence(
-    `Dependency ${name}@${dependencies.get(name) ?? "unknown"} is declared`,
+    `Dependency ${name}@${declaration?.version ?? "unknown"} is declared`,
+    declaration?.line,
   );
 }
 
-function fileEvidence(file: string, description: string): Evidence {
-  return { file, description };
+function fileEvidence(
+  file: string,
+  description: string,
+  line?: number,
+): Evidence {
+  return { file, ...(line === undefined ? {} : { line }), description };
+}
+
+function propertyLine(
+  contents: string,
+  propertyName: string,
+  propertyValue: string,
+): number | undefined {
+  const propertyPrefix = `${JSON.stringify(propertyName)}:`;
+  const serializedValue = JSON.stringify(propertyValue);
+  const lines = contents.split(/\r?\n/u);
+  const index = lines.findIndex(
+    (line) =>
+      line.trimStart().startsWith(propertyPrefix) &&
+      line.includes(serializedValue),
+  );
+  return index === -1 ? undefined : index + 1;
 }
 
 function firstDependency(

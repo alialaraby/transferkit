@@ -19,9 +19,14 @@ export interface MessagingConsumerData {
   routingKey?: string;
 }
 
+export type MessagingConsumerFinding = Finding<
+  MessagingConsumerData,
+  "messaging.consumer"
+>;
+
 export function discoverRabbitMqConsumers(
   repositoryDirectory: string,
-): Finding<MessagingConsumerData>[] {
+): MessagingConsumerFinding[] {
   return discoverRabbitMqConsumersInAst(
     createTypeScriptAst(repositoryDirectory),
   );
@@ -29,7 +34,7 @@ export function discoverRabbitMqConsumers(
 
 export function discoverRabbitMqConsumersInAst(
   ast: TypeScriptAst,
-): Finding<MessagingConsumerData>[] {
+): MessagingConsumerFinding[] {
   return ast.sourceFiles.flatMap((sourceFile) =>
     consumersInFile(ast, sourceFile),
   );
@@ -38,8 +43,8 @@ export function discoverRabbitMqConsumersInAst(
 function consumersInFile(
   ast: TypeScriptAst,
   sourceFile: SourceFile,
-): Finding<MessagingConsumerData>[] {
-  const decoratorNames = new Set<string>();
+): MessagingConsumerFinding[] {
+  const decoratorImports = new Map<string, Node>();
 
   for (const declaration of sourceFile.getImportDeclarations()) {
     if (
@@ -50,24 +55,25 @@ function consumersInFile(
 
     for (const namedImport of declaration.getNamedImports()) {
       if (namedImport.getName() === "RabbitSubscribe") {
-        decoratorNames.add(
+        decoratorImports.set(
           namedImport.getAliasNode()?.getText() ?? namedImport.getName(),
+          namedImport,
         );
       }
     }
   }
 
-  if (decoratorNames.size === 0) {
+  if (decoratorImports.size === 0) {
     return [];
   }
 
-  const findings: Finding<MessagingConsumerData>[] = [];
+  const findings: MessagingConsumerFinding[] = [];
 
   for (const classDeclaration of sourceFile.getClasses()) {
     for (const method of classDeclaration.getMethods()) {
       const decorator = method
         .getDecorators()
-        .find((candidate) => decoratorNames.has(candidate.getName()));
+        .find((candidate) => decoratorImports.has(candidate.getName()));
       if (decorator === undefined) {
         continue;
       }
@@ -77,17 +83,22 @@ function consumersInFile(
         continue;
       }
 
-      const line = method.getNameNode().getStartLineNumber();
-      const evidence = sourceEvidence(
+      const declarationEvidence = sourceEvidence(
         ast,
-        method.getNameNode(),
-        "RabbitMQ consumer declaration",
+        decorator,
+        "RabbitSubscribe decorator marks this method as a RabbitMQ consumer",
       );
+      const importEvidence = sourceEvidence(
+        ast,
+        decoratorImports.get(decorator.getName())!,
+        "RabbitSubscribe is imported from @golevelup/nestjs-rabbitmq",
+      );
+      const className = classDeclaration.getName() ?? "anonymous";
       findings.push({
-        id: `messaging.consumer:${evidence.file}:${line}`,
+        id: `messaging.consumer:${declarationEvidence.file}:${className}.${method.getName()}`,
         kind: "messaging.consumer",
         data: { name: method.getName(), ...metadata },
-        evidence: [evidence],
+        evidence: [declarationEvidence, importEvidence],
       });
     }
   }
