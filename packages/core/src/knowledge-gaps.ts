@@ -12,6 +12,7 @@ export interface KnowledgeEntry<
   entityId: string;
   field: TField;
   value: TValue;
+  status?: "answered" | "skipped";
 }
 
 export interface KnowledgeGap<
@@ -30,7 +31,9 @@ export function detectKnowledgeGaps<TField extends string>(
   requirements: readonly KnowledgeRequirement<string, TField>[],
 ): KnowledgeGap<TField>[] {
   const completedFields = new Set(
-    knowledgeEntries.map(({ entityId, field }) => `${entityId}\u0000${field}`),
+    knowledgeEntries
+      .filter(({ status }) => status !== "skipped")
+      .map(({ entityId, field }) => `${entityId}\u0000${field}`),
   );
   const gaps: KnowledgeGap<TField>[] = [];
 

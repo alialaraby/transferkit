@@ -15,7 +15,27 @@ export async function scanHandover(
   const consumers = findings.filter(isMessagingConsumerFinding);
   const entities: HandoverEntity[] = buildRabbitMqMessagingModel(consumers)
     .flatMap(({ consumers: systemConsumers }) => systemConsumers)
-    .map(({ id, kind, name }) => ({ id, kind, name }));
+    .map(
+      ({
+        id,
+        kind,
+        name,
+        technology,
+        queue,
+        exchange,
+        routingKey,
+        handler,
+      }) => ({
+        id,
+        kind,
+        name,
+        technology,
+        handler,
+        ...(queue === undefined ? {} : { queue }),
+        ...(exchange === undefined ? {} : { exchange }),
+        ...(routingKey === undefined ? {} : { routingKey }),
+      }),
+    );
   const existing = await readHandoverState(workingDirectory);
 
   await writeHandoverState(workingDirectory, { ...existing, entities });

@@ -7,9 +7,16 @@ import { packageName as corePackageName } from "@transferkit/core";
 import { packageName as renderersPackageName } from "@transferkit/renderers";
 import { packageName as scannersPackageName } from "@transferkit/scanners";
 import { packageName as standardsPackageName } from "@transferkit/standards";
+import {
+  renderHandoverAudit,
+  renderMessagingOnboardingPlan,
+} from "@transferkit/renderers";
 
+import { auditHandover } from "./audit-handover.js";
+import { exportHandover } from "./export-handover.js";
 import { initializeHandover } from "./initialize-handover.js";
 import { runHandoverInterview } from "./interview-handover.js";
+import { planOnboarding } from "./plan-onboarding.js";
 import { scanHandover } from "./scan-handover.js";
 
 export const packageName = "@transferkit/cli";
@@ -31,12 +38,24 @@ export async function runCli(
   args: readonly string[],
   environment: CliEnvironment,
 ): Promise<number> {
-  if (args[0] !== "handover" || args.length !== 2) {
-    environment.stderr("Usage: tk handover <init|scan|interview>");
+  if (args.length !== 2 || (args[0] !== "handover" && args[0] !== "onboard")) {
+    environment.stderr(usage);
     return 1;
   }
 
   try {
+    if (args[0] === "onboard" && args[1] === "plan") {
+      environment.stdout(
+        renderMessagingOnboardingPlan(await planOnboarding(environment.cwd)),
+      );
+      return 0;
+    }
+
+    if (args[0] !== "handover") {
+      environment.stderr(usage);
+      return 1;
+    }
+
     if (args[1] === "init") {
       const result = await initializeHandover(environment.cwd);
       const message =
@@ -69,13 +88,28 @@ export async function runCli(
       return 0;
     }
 
-    environment.stderr("Usage: tk handover <init|scan|interview>");
+    if (args[1] === "audit") {
+      environment.stdout(
+        renderHandoverAudit(await auditHandover(environment.cwd)),
+      );
+      return 0;
+    }
+
+    if (args[1] === "export") {
+      environment.stdout(`Generated ${await exportHandover(environment.cwd)}`);
+      return 0;
+    }
+
+    environment.stderr(usage);
     return 1;
   } catch (error) {
     environment.stderr(`TransferKit failed: ${errorMessage(error)}`);
     return 1;
   }
 }
+
+const usage =
+  "Usage: tk handover <init|scan|interview|audit|export> | tk onboard plan";
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
