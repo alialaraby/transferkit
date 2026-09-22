@@ -1,0 +1,14 @@
+# Internal planning and development guidance
+AGENTS.md
+docs/ROADMAP.md
+docs/ENGINEERING_CONCEPTS.md
+docs/SPEC.md
+
+# Local TransferKit state
+.transferkit.local/
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
