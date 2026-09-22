@@ -4,14 +4,23 @@ import { packageName as scannersPackageName } from "@transferkit/scanners";
 import { packageName as standardsPackageName } from "@transferkit/standards";
 import {
   renderHandoverAudit,
-  renderMessagingOnboardingPlan,
+  renderOnboardingPlan,
+  renderOnboardingStatus,
 } from "@transferkit/renderers";
+import {
+  buildOwnershipReadinessEvidence,
+  isTaskStatus,
+} from "@transferkit/core";
 
 import { auditHandover } from "./audit-handover.js";
 import { exportHandover } from "./export-handover.js";
 import { initializeHandover } from "./initialize-handover.js";
 import { runHandoverInterview } from "./interview-handover.js";
 import { planOnboarding } from "./plan-onboarding.js";
+import {
+  loadOnboardingProgress,
+  setOnboardingTaskStatus,
+} from "./onboarding-progress.js";
 import { scanHandover } from "./scan-handover.js";
 
 export const packageName = "@transferkit/cli";
@@ -38,6 +47,8 @@ export async function runCli(
     args[0] === "handover" &&
     args[1] === "export" &&
     args[2] === "--single";
+  const taskUpdate =
+    args.length === 4 && args[0] === "onboard" && args[1] === "task";
   if (args.length === 1 && isHelpFlag(args[0])) {
     environment.stdout(usage);
     return 0;
@@ -54,6 +65,7 @@ export async function runCli(
 
   if (
     !singleExport &&
+    !taskUpdate &&
     (args.length !== 2 || (args[0] !== "handover" && args[0] !== "onboard"))
   ) {
     environment.stderr(usage);
@@ -63,8 +75,34 @@ export async function runCli(
   try {
     if (args[0] === "onboard" && args[1] === "plan") {
       environment.stdout(
-        renderMessagingOnboardingPlan(await planOnboarding(environment.cwd)),
+        renderOnboardingPlan(await planOnboarding(environment.cwd)),
       );
+      return 0;
+    }
+
+    if (args[0] === "onboard" && args[1] === "status") {
+      const plan = await planOnboarding(environment.cwd);
+      const progress = await loadOnboardingProgress(environment.cwd, plan);
+      environment.stdout(
+        renderOnboardingStatus(
+          plan,
+          progress,
+          buildOwnershipReadinessEvidence(plan, progress),
+        ),
+      );
+      return 0;
+    }
+
+    if (taskUpdate) {
+      const taskId = args[2];
+      const status = args[3];
+      if (taskId === undefined || !isTaskStatus(status)) {
+        environment.stderr(onboardUsage);
+        return 1;
+      }
+      const plan = await planOnboarding(environment.cwd);
+      await setOnboardingTaskStatus(environment.cwd, plan, taskId, status);
+      environment.stdout(`Updated ${taskId} to ${status}.`);
       return 0;
     }
 
@@ -128,10 +166,11 @@ export async function runCli(
 }
 
 const usage =
-  "Usage: tk handover <init|scan|interview|audit|export> | tk onboard plan";
+  "Usage: tk handover <init|scan|interview|audit|export> | tk onboard <plan|status|task>";
 const handoverUsage =
   "Usage: tk handover <init|scan|interview|audit|export> [--single]";
-const onboardUsage = "Usage: tk onboard plan";
+const onboardUsage =
+  "Usage: tk onboard <plan|status> | tk onboard task <task-id> <not-started|in-progress|completed|skipped>";
 
 function isHelpFlag(value: string | undefined): boolean {
   return value === "--help" || value === "-h";

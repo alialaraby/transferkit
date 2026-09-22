@@ -1,6 +1,6 @@
 import { packageName as corePackageName } from "@transferkit/core";
 export { planMessagingInterviewQuestions } from "./messaging-question-planner.js";
-export { planMessagingOnboarding } from "./messaging-onboarding-plan.js";
+export { planOnboarding } from "./onboarding-plan.js";
 export {
   messagingConsumerRequirements,
   type MessagingConsumerKnowledgeField,
