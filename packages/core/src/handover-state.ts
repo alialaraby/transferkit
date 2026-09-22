@@ -4,12 +4,17 @@ export interface HandoverEntity {
   id: string;
   kind: "messaging.consumer";
   name: string;
+  technology?: string;
+  queue?: string;
+  exchange?: string;
+  routingKey?: string;
+  handler?: string;
 }
 
 export interface HandoverState {
   schemaVersion: 1;
   entities: HandoverEntity[];
-  knowledge: KnowledgeEntry<string>[];
+  knowledge: KnowledgeEntry<string, string>[];
 }
 
 export function createHandoverState(): HandoverState {
@@ -44,17 +49,31 @@ function isHandoverEntity(value: unknown): value is HandoverEntity {
     isRecord(value) &&
     typeof value.id === "string" &&
     value.kind === "messaging.consumer" &&
-    typeof value.name === "string"
+    typeof value.name === "string" &&
+    isOptionalString(value.technology) &&
+    isOptionalString(value.queue) &&
+    isOptionalString(value.exchange) &&
+    isOptionalString(value.routingKey) &&
+    isOptionalString(value.handler)
   );
 }
 
-function isKnowledgeEntry(value: unknown): value is KnowledgeEntry<string> {
+function isKnowledgeEntry(
+  value: unknown,
+): value is KnowledgeEntry<string, string> {
   return (
     isRecord(value) &&
     typeof value.entityId === "string" &&
     typeof value.field === "string" &&
-    typeof value.value === "string"
+    typeof value.value === "string" &&
+    (value.status === undefined ||
+      value.status === "answered" ||
+      value.status === "skipped")
   );
+}
+
+function isOptionalString(value: unknown): boolean {
+  return value === undefined || typeof value === "string";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

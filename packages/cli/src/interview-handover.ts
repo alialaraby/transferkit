@@ -69,6 +69,8 @@ export async function runHandoverInterview(
         return { status: "cancelled", answered, skipped };
       }
       if (command === "skip" || answer.length === 0) {
+        state = markSkipped(state, question);
+        await writeHandoverState(workingDirectory, state);
         skipped += 1;
         break;
       }
@@ -134,7 +136,9 @@ function addAnswer(
     .filter(({ id }) => requirementIds.has(id))
     .map(({ field }) => field);
   const existingKeys = new Set(
-    state.knowledge.map(({ entityId, field }) => `${entityId}\u0000${field}`),
+    state.knowledge
+      .filter(({ status }) => status !== "skipped")
+      .map(({ entityId, field }) => `${entityId}\u0000${field}`),
   );
   const additions: KnowledgeEntry<MessagingConsumerKnowledgeField, string>[] =
     fields
@@ -150,5 +154,44 @@ function addAnswer(
         value: answer,
       }));
 
-  return { ...state, knowledge: [...state.knowledge, ...additions] };
+  const answeredKeys = new Set(
+    additions.map(({ entityId, field }) => `${entityId}\u0000${field}`),
+  );
+  return {
+    ...state,
+    knowledge: [
+      ...state.knowledge.filter(
+        ({ entityId, field }) => !answeredKeys.has(`${entityId}\u0000${field}`),
+      ),
+      ...additions,
+    ],
+  };
+}
+
+function markSkipped(
+  state: HandoverState,
+  question: InterviewQuestion,
+): HandoverState {
+  if (question.targetEntityId === undefined) return state;
+  const requirementIds = new Set(question.requirementIds);
+  const fields = messagingConsumerRequirements
+    .filter(({ id }) => requirementIds.has(id))
+    .map(({ field }) => field);
+  const skippedKeys = new Set(
+    fields.map((field) => `${question.targetEntityId as string}\u0000${field}`),
+  );
+  return {
+    ...state,
+    knowledge: [
+      ...state.knowledge.filter(
+        ({ entityId, field }) => !skippedKeys.has(`${entityId}\u0000${field}`),
+      ),
+      ...fields.map((field) => ({
+        entityId: question.targetEntityId as string,
+        field,
+        value: "",
+        status: "skipped" as const,
+      })),
+    ],
+  };
 }

@@ -2,6 +2,7 @@ import { packageName as corePackageName } from "@transferkit/core";
 import type { KnowledgeRequirement } from "@transferkit/core";
 
 export { planMessagingInterviewQuestions } from "./messaging-question-planner.js";
+export { planMessagingOnboarding } from "./messaging-onboarding-plan.js";
 
 export const packageName = "@transferkit/standards";
 export const dependencies = [corePackageName] as const;

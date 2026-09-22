@@ -1,8 +1,10 @@
 export const packageName = "@transferkit/core";
 
 export * from "./handover-state.js";
+export * from "./handover-audit.js";
 export * from "./interview.js";
 export * from "./knowledge-gaps.js";
+export * from "./onboarding-plan.js";
 
 export interface Evidence {
   file: string;
