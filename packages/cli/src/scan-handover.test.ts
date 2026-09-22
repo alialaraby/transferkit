@@ -12,6 +12,10 @@ const fixtures = join(
   dirname(fileURLToPath(import.meta.url)),
   "../../../fixtures/rabbitmq-consumers",
 );
+const milestoneFourFixture = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "../../../fixtures/milestone-four",
+);
 
 describe("scanHandover", () => {
   it("preserves knowledge for the same stable consumer across rescans", async () => {
@@ -68,6 +72,31 @@ describe("scanHandover", () => {
     await scanHandover(directory);
 
     expect(await readHandoverState(directory)).toEqual(first);
+  });
+
+  it("persists auditable entities for newly supported domains", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "transferkit-scan-"));
+    await cp(milestoneFourFixture, directory, { recursive: true });
+
+    await scanHandover(directory);
+
+    const entities = (await readHandoverState(directory)).entities;
+    expect(entities.map(({ kind }) => kind)).toEqual(
+      expect.arrayContaining([
+        "scheduled-job",
+        "database",
+        "integration",
+        "configuration",
+        "containerization",
+        "ci.workflow",
+      ]),
+    );
+    expect(
+      entities.filter(({ kind }) => kind === "configuration"),
+    ).toHaveLength(1);
+    expect(
+      entities.filter(({ kind }) => kind === "containerization"),
+    ).toHaveLength(1);
   });
 });
 

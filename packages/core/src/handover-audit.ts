@@ -20,8 +20,15 @@ export interface EntityAuditResult {
 }
 
 export interface HandoverAuditResult {
-  category: "Messaging";
+  category: "Messaging" | "Handover";
   entities: EntityAuditResult[];
+}
+
+export function auditHandoverKnowledge(
+  state: HandoverState,
+  requirements: readonly KnowledgeRequirement[],
+): HandoverAuditResult {
+  return auditEntities("Handover", state.entities, state, requirements);
 }
 
 export function auditMessagingKnowledge(
@@ -32,9 +39,18 @@ export function auditMessagingKnowledge(
     (entity): entity is HandoverEntity => entity.kind === "messaging.consumer",
   );
 
+  return auditEntities("Messaging", entities, state, requirements);
+}
+
+function auditEntities(
+  category: HandoverAuditResult["category"],
+  entities: readonly HandoverEntity[],
+  state: HandoverState,
+  requirements: readonly KnowledgeRequirement[],
+): HandoverAuditResult {
   return {
-    category: "Messaging",
-    entities: entities.map((entity) => {
+    category,
+    entities: entities.flatMap((entity) => {
       const results = requirements
         .filter(({ entityKind }) => entityKind === entity.kind)
         .map((requirement) => {
@@ -55,18 +71,21 @@ export function auditMessagingKnowledge(
                   : ("satisfied" as const),
           };
         });
+      if (results.length === 0) return [];
       const critical = results.filter(
         ({ priority }) => priority === "critical",
       );
-      return {
-        entityId: entity.id,
-        entityName: entity.name,
-        requirements: results,
-        criticalComplete: critical.filter(
-          ({ status }) => status === "satisfied",
-        ).length,
-        criticalTotal: critical.length,
-      };
+      return [
+        {
+          entityId: entity.id,
+          entityName: entity.name,
+          requirements: results,
+          criticalComplete: critical.filter(
+            ({ status }) => status === "satisfied",
+          ).length,
+          criticalTotal: critical.length,
+        },
+      ];
     }),
   };
 }

@@ -78,8 +78,53 @@ describe("auditHandover", () => {
 
     expect(result.entities).toEqual([]);
     expect(renderHandoverAudit(result)).toBe(
-      "Messaging\n\nNo messaging consumers found.",
+      "Handover\n\nNo auditable handover entities found.",
     );
+  });
+
+  it("audits multiple domains and reports exact missing fields", async () => {
+    const state: HandoverState = {
+      schemaVersion: 1,
+      entities: [
+        { id: "job:billing", kind: "scheduled-job", name: "BillingJob.run" },
+        { id: "integration:stripe", kind: "integration", name: "Stripe" },
+      ],
+      knowledge: [
+        { entityId: "job:billing", field: "criticality", value: "critical" },
+        {
+          entityId: "integration:stripe",
+          field: "failureBehavior",
+          value: "Checkout is unavailable",
+        },
+      ],
+    };
+
+    const result = await auditHandover(await projectWithState(state));
+
+    expect(result.entities.map(({ entityId }) => entityId)).toEqual([
+      "job:billing",
+      "integration:stripe",
+    ]);
+    expect(
+      result.entities[0]?.requirements.find(
+        ({ field }) => field === "criticality",
+      )?.status,
+    ).toBe("satisfied");
+    expect(
+      result.entities[0]?.requirements.find(
+        ({ field }) => field === "recoveryProcedure",
+      )?.status,
+    ).toBe("missing");
+    expect(
+      result.entities[1]?.requirements.find(
+        ({ field }) => field === "failureBehavior",
+      )?.status,
+    ).toBe("satisfied");
+    expect(
+      result.entities[1]?.requirements.find(
+        ({ field }) => field === "externalOwner",
+      )?.status,
+    ).toBe("missing");
   });
 });
 
