@@ -1,0 +1,10 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/core" },
+    { "path": "./packages/scanners" },
+    { "path": "./packages/standards" },
+    { "path": "./packages/renderers" },
+    { "path": "./packages/cli" }
+  ]
+}

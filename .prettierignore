@@ -1,0 +1,5 @@
+dist/
+node_modules/
+docs/
+README.md
+package-lock.json
