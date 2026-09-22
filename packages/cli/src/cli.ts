@@ -33,6 +33,11 @@ export async function runCli(
   args: readonly string[],
   environment: CliEnvironment,
 ): Promise<number> {
+  const singleExport =
+    args.length === 3 &&
+    args[0] === "handover" &&
+    args[1] === "export" &&
+    args[2] === "--single";
   if (args.length === 1 && isHelpFlag(args[0])) {
     environment.stdout(usage);
     return 0;
@@ -47,7 +52,10 @@ export async function runCli(
     return 0;
   }
 
-  if (args.length !== 2 || (args[0] !== "handover" && args[0] !== "onboard")) {
+  if (
+    !singleExport &&
+    (args.length !== 2 || (args[0] !== "handover" && args[0] !== "onboard"))
+  ) {
     environment.stderr(usage);
     return 1;
   }
@@ -105,7 +113,9 @@ export async function runCli(
     }
 
     if (args[1] === "export") {
-      environment.stdout(`Generated ${await exportHandover(environment.cwd)}`);
+      environment.stdout(
+        `Generated ${await exportHandover(environment.cwd, { single: singleExport })}`,
+      );
       return 0;
     }
 
@@ -120,7 +130,7 @@ export async function runCli(
 const usage =
   "Usage: tk handover <init|scan|interview|audit|export> | tk onboard plan";
 const handoverUsage =
-  "Usage: tk handover <init|scan|interview|audit|export>";
+  "Usage: tk handover <init|scan|interview|audit|export> [--single]";
 const onboardUsage = "Usage: tk onboard plan";
 
 function isHelpFlag(value: string | undefined): boolean {

@@ -4,13 +4,21 @@ import type {
   HandoverState,
   MessagingOnboardingPlan,
 } from "@transferkit/core";
+import { sanitizeHandoverValue } from "./handover-package.js";
 
 export const packageName = "@transferkit/renderers";
 export const dependencies = [corePackageName] as const;
 
+export {
+  renderHandoverPackage,
+  renderSingleFileHandover,
+  sanitizeHandoverValue,
+  type HandoverDocument,
+} from "./handover-package.js";
+
 export function renderHandoverAudit(result: HandoverAuditResult): string {
   if (result.entities.length === 0) {
-    return `${result.category}\n\nNo messaging consumers found.`;
+    return `${result.category}\n\n${result.category === "Messaging" ? "No messaging consumers found." : "No auditable handover entities found."}`;
   }
 
   return [
@@ -82,7 +90,7 @@ export function renderMessagingMarkdown(
         lines,
         requirement.title,
         typeof value === "string" && value.trim().length > 0
-          ? value
+          ? sanitizeHandoverValue(value)
           : undefined,
         requirement.status === "skipped" ? "Missing (skipped)" : "Missing",
       );

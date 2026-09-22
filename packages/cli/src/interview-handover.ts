@@ -5,9 +5,9 @@ import {
   type KnowledgeEntry,
 } from "@transferkit/core";
 import {
-  messagingConsumerRequirements,
-  planMessagingInterviewQuestions,
-  type MessagingConsumerKnowledgeField,
+  handoverRequirements,
+  planHandoverInterviewQuestions,
+  type HandoverKnowledgeField,
 } from "@transferkit/standards";
 
 import { readHandoverState, writeHandoverState } from "./handover-state.js";
@@ -32,63 +32,112 @@ export async function runHandoverInterview(
   const criticalGaps = detectKnowledgeGaps(
     state.entities,
     state.knowledge,
-    messagingConsumerRequirements,
+    handoverRequirements,
   ).filter(({ priority }) => priority === "critical");
-  const questions = planMessagingInterviewQuestions(criticalGaps).slice(
-    0,
-    maximumQuestionsPerRun,
+  const allQuestions = planHandoverInterviewQuestions(
+    criticalGaps,
+    state.entities,
   );
-
-  if (questions.length === 0) {
-    io.write("No missing critical handover knowledge.");
-    return { status: "no-critical-gaps", answered: 0, skipped: 0 };
-  }
-
+  const questions = allQuestions.slice(0, maximumQuestionsPerRun);
   io.write(
-    questions.length === 1
-      ? "1 question is needed."
-      : `${questions.length} questions are needed.`,
+    `${allQuestions.length} critical ${allQuestions.length === 1 ? "question remains" : "questions remain"}.`,
   );
-  io.write("Enter skip to defer a question, or cancel to save and exit.");
   let answered = 0;
   let skipped = 0;
 
-  for (const [index, question] of questions.entries()) {
-    io.write(`Question ${index + 1} of ${questions.length}`);
-    io.write(formatQuestion(question));
-
-    while (true) {
-      const answer = (await io.read("> ")).trim();
-      const command = answer.toLowerCase();
-      if (
-        command === "cancel" ||
-        command === "save & exit" ||
-        command === "save and exit"
-      ) {
-        io.write("Answers saved. Interview cancelled.");
-        return { status: "cancelled", answered, skipped };
-      }
-      if (command === "skip" || answer.length === 0) {
-        state = markSkipped(state, question);
-        await writeHandoverState(workingDirectory, state);
-        skipped += 1;
-        break;
-      }
-
-      const normalizedAnswer = normalizeAnswer(question, answer);
-      if (normalizedAnswer === undefined) {
-        io.write("Choose a listed value or number, or enter skip or cancel.");
-        continue;
-      }
-
-      state = addAnswer(state, question, normalizedAnswer);
-      await writeHandoverState(workingDirectory, state);
-      answered += 1;
-      break;
-    }
+  if (questions.length > 0) {
+    io.write("Enter skip to defer a question, or cancel to save and exit.");
+    if (!(await askQuestions(questions)))
+      return { status: "cancelled", answered, skipped };
   }
 
+  if (allQuestions.length > questions.length) {
+    const remaining = allQuestions.length - questions.length;
+    io.write(
+      `${remaining} critical ${remaining === 1 ? "question remains" : "questions remain"}. Run the interview again to continue.`,
+    );
+    return { status: "complete", answered, skipped };
+  }
+
+  const optionalGaps = detectKnowledgeGaps(
+    state.entities,
+    state.knowledge,
+    handoverRequirements,
+  ).filter(({ priority }) => priority !== "critical");
+  const optionalQuestions = planHandoverInterviewQuestions(
+    optionalGaps,
+    state.entities,
+  );
+  if (optionalQuestions.length === 0) {
+    if (allQuestions.length === 0)
+      io.write("No missing critical handover knowledge.");
+    return allQuestions.length === 0
+      ? { status: "no-critical-gaps", answered: 0, skipped: 0 }
+      : { status: "complete", answered, skipped };
+  }
+
+  io.write(
+    `${optionalQuestions.length} optional ${optionalQuestions.length === 1 ? "question remains" : "questions remain"}. Continue? [yes/no]`,
+  );
+  const continueAnswer = (await io.read("> ")).trim().toLowerCase();
+  if (continueAnswer !== "yes" && continueAnswer !== "y") {
+    io.write(
+      "Optional questions deferred. Run the interview again to continue.",
+    );
+    return { status: "complete", answered, skipped };
+  }
+  io.write("Enter skip to defer a question, or cancel to save and exit.");
+  const optionalSession = optionalQuestions.slice(0, maximumQuestionsPerRun);
+  if (!(await askQuestions(optionalSession)))
+    return { status: "cancelled", answered, skipped };
+  const optionalRemaining = optionalQuestions.length - optionalSession.length;
+  if (optionalRemaining > 0) {
+    io.write(
+      `${optionalRemaining} optional ${optionalRemaining === 1 ? "question remains" : "questions remain"}. Run the interview again to continue.`,
+    );
+  }
   return { status: "complete", answered, skipped };
+
+  async function askQuestions(
+    sessionQuestions: readonly InterviewQuestion[],
+  ): Promise<boolean> {
+    for (const [index, question] of sessionQuestions.entries()) {
+      io.write(`Question ${index + 1} of ${sessionQuestions.length}`);
+      io.write(formatQuestion(question));
+      while (true) {
+        const answer = (await io.read("> ")).trim();
+        const command = answer.toLowerCase();
+        if (
+          command === "cancel" ||
+          command === "save & exit" ||
+          command === "save and exit"
+        ) {
+          io.write("Answers saved. Interview cancelled.");
+          return false;
+        }
+        if (command === "skip") {
+          state = markSkipped(state, question);
+          await writeHandoverState(workingDirectory, state);
+          skipped += 1;
+          break;
+        }
+        if (answer.length === 0) {
+          io.write("Enter an answer, or explicitly enter skip or cancel.");
+          continue;
+        }
+        const normalizedAnswer = normalizeAnswer(question, answer);
+        if (normalizedAnswer === undefined) {
+          io.write("Choose a listed value or number, or enter skip or cancel.");
+          continue;
+        }
+        state = addAnswer(state, question, normalizedAnswer);
+        await writeHandoverState(workingDirectory, state);
+        answered += 1;
+        break;
+      }
+    }
+    return true;
+  }
 }
 
 function formatQuestion(question: InterviewQuestion): string {
@@ -132,7 +181,7 @@ function addAnswer(
 ): HandoverState {
   if (question.targetEntityId === undefined) return state;
   const requirementIds = new Set(question.requirementIds);
-  const fields = messagingConsumerRequirements
+  const fields = handoverRequirements
     .filter(({ id }) => requirementIds.has(id))
     .map(({ field }) => field);
   const existingKeys = new Set(
@@ -140,19 +189,16 @@ function addAnswer(
       .filter(({ status }) => status !== "skipped")
       .map(({ entityId, field }) => `${entityId}\u0000${field}`),
   );
-  const additions: KnowledgeEntry<MessagingConsumerKnowledgeField, string>[] =
-    fields
-      .filter(
-        (field) =>
-          !existingKeys.has(
-            `${question.targetEntityId as string}\u0000${field}`,
-          ),
-      )
-      .map((field) => ({
-        entityId: question.targetEntityId as string,
-        field,
-        value: answer,
-      }));
+  const additions: KnowledgeEntry<HandoverKnowledgeField, string>[] = fields
+    .filter(
+      (field) =>
+        !existingKeys.has(`${question.targetEntityId as string}\u0000${field}`),
+    )
+    .map((field) => ({
+      entityId: question.targetEntityId as string,
+      field,
+      value: answer,
+    }));
 
   const answeredKeys = new Set(
     additions.map(({ entityId, field }) => `${entityId}\u0000${field}`),
@@ -174,7 +220,7 @@ function markSkipped(
 ): HandoverState {
   if (question.targetEntityId === undefined) return state;
   const requirementIds = new Set(question.requirementIds);
-  const fields = messagingConsumerRequirements
+  const fields = handoverRequirements
     .filter(({ id }) => requirementIds.has(id))
     .map(({ field }) => field);
   const skippedKeys = new Set(

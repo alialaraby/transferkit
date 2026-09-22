@@ -9,23 +9,52 @@ import {
   type MessagingConsumerFinding,
 } from "./rabbitmq-consumers.js";
 import { createTypeScriptAst } from "./typescript-ast.js";
+import {
+  discoverScheduledJobsInAst,
+  type ScheduledJobFinding,
+} from "./scheduled-jobs.js";
+import {
+  discoverSourceFeaturesInAst,
+  type SourceDiscoveryFinding,
+} from "./source-discovery.js";
+import {
+  discoverRepositoryFiles,
+  type RepositoryFileFinding,
+} from "./repository-files.js";
 
 export { discoverRabbitMqConsumers } from "./rabbitmq-consumers.js";
 export { buildRabbitMqMessagingModel } from "./messaging-model.js";
+export { discoverScheduledJobs, buildScheduledJobs } from "./scheduled-jobs.js";
+export { discoverSourceFeatures } from "./source-discovery.js";
+export { discoverRepositoryFiles } from "./repository-files.js";
 export type {
   MessagingConsumerData,
   MessagingConsumerFinding,
 } from "./rabbitmq-consumers.js";
+export type {
+  ScheduledJobData,
+  ScheduledJobFinding,
+} from "./scheduled-jobs.js";
+export type { SourceDiscoveryFinding } from "./source-discovery.js";
+export type { RepositoryFileFinding } from "./repository-files.js";
+
+export type RepositoryFinding =
+  | TechnologyFinding
+  | MessagingConsumerFinding
+  | ScheduledJobFinding
+  | SourceDiscoveryFinding
+  | RepositoryFileFinding;
 
 export const packageName = "@transferkit/scanners";
 export const dependencies = [corePackageName] as const;
 
 export interface TechnologyData {
-  name: "Node.js" | "TypeScript" | "NestJS" | "RabbitMQ";
+  name:
+    "Node.js" | "TypeScript" | "NestJS" | "RabbitMQ" | "PostgreSQL" | "TypeORM";
 }
 
 export type TechnologyFindingKind =
-  "technology" | "language" | "framework" | "messaging";
+  "technology" | "language" | "framework" | "messaging" | "database" | "orm";
 
 export type TechnologyFinding = Finding<TechnologyData, TechnologyFindingKind>;
 
@@ -111,18 +140,44 @@ export async function detectProject(
     );
   }
 
+  const typeOrmPackage = firstDependency(dependencies, [
+    "typeorm",
+    "@nestjs/typeorm",
+  ]);
+  if (typeOrmPackage !== undefined) {
+    findings.push(
+      technologyFinding("orm.typeorm", "orm", "TypeORM", [
+        dependencyEvidence(typeOrmPackage, dependencies),
+      ]),
+    );
+  }
+  const postgresPackage = firstDependency(dependencies, ["pg"]);
+  if (postgresPackage !== undefined) {
+    findings.push(
+      technologyFinding("database.postgresql", "database", "PostgreSQL", [
+        dependencyEvidence(postgresPackage, dependencies),
+      ]),
+    );
+  }
+
   return findings;
 }
 
 export async function scanRepository(
   repositoryDirectory: string,
-): Promise<Array<TechnologyFinding | MessagingConsumerFinding>> {
+): Promise<RepositoryFinding[]> {
   const ast = createTypeScriptAst(repositoryDirectory);
-  const [projectFindings, consumerFindings] = await Promise.all([
+  const [projectFindings, fileFindings] = await Promise.all([
     detectProject(repositoryDirectory),
-    Promise.resolve(discoverRabbitMqConsumersInAst(ast)),
+    discoverRepositoryFiles(repositoryDirectory),
   ]);
-  return [...projectFindings, ...consumerFindings];
+  return [
+    ...projectFindings,
+    ...discoverRabbitMqConsumersInAst(ast),
+    ...discoverScheduledJobsInAst(ast),
+    ...discoverSourceFeaturesInAst(ast),
+    ...fileFindings,
+  ];
 }
 
 async function loadPackageJson(

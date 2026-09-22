@@ -36,6 +36,18 @@ export interface MessagingSystem {
   consumers: MessagingConsumer[];
 }
 
+export type ScheduledJobType = "cron" | "interval" | "timeout";
+
+export interface ScheduledJob {
+  id: string;
+  kind: "scheduled-job";
+  name: string;
+  handler: string;
+  type: ScheduledJobType;
+  schedule?: string | number;
+  evidence: Evidence[];
+}
+
 export function buildMessagingSystems(
   consumers: readonly MessagingConsumer[],
 ): MessagingSystem[] {

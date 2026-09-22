@@ -2,13 +2,23 @@ import type { KnowledgeEntry } from "./knowledge-gaps.js";
 
 export interface HandoverEntity {
   id: string;
-  kind: "messaging.consumer";
+  kind:
+    | "messaging.consumer"
+    | "scheduled-job"
+    | "database"
+    | "integration"
+    | "configuration"
+    | "containerization"
+    | "ci.workflow";
   name: string;
   technology?: string;
   queue?: string;
   exchange?: string;
   routingKey?: string;
   handler?: string;
+  scheduleType?: string;
+  schedule?: string | number;
+  endpoint?: string;
 }
 
 export interface HandoverState {
@@ -48,13 +58,30 @@ function isHandoverEntity(value: unknown): value is HandoverEntity {
   return (
     isRecord(value) &&
     typeof value.id === "string" &&
-    value.kind === "messaging.consumer" &&
+    isHandoverEntityKind(value.kind) &&
     typeof value.name === "string" &&
     isOptionalString(value.technology) &&
     isOptionalString(value.queue) &&
     isOptionalString(value.exchange) &&
     isOptionalString(value.routingKey) &&
-    isOptionalString(value.handler)
+    isOptionalString(value.handler) &&
+    isOptionalString(value.scheduleType) &&
+    (value.schedule === undefined ||
+      typeof value.schedule === "string" ||
+      typeof value.schedule === "number") &&
+    isOptionalString(value.endpoint)
+  );
+}
+
+function isHandoverEntityKind(value: unknown): value is HandoverEntity["kind"] {
+  return (
+    value === "messaging.consumer" ||
+    value === "scheduled-job" ||
+    value === "database" ||
+    value === "integration" ||
+    value === "configuration" ||
+    value === "containerization" ||
+    value === "ci.workflow"
   );
 }
 

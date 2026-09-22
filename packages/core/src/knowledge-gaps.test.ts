@@ -103,4 +103,27 @@ describe("detectKnowledgeGaps", () => {
       ["owner", "optional"],
     ]);
   });
+
+  it("does not treat blank or skipped knowledge as completed", () => {
+    expect(
+      detectKnowledgeGaps(
+        [entity],
+        [
+          { entityId: entity.id, field: "criticality", value: "   " },
+          {
+            entityId: entity.id,
+            field: "failureBehavior",
+            value: "",
+            status: "skipped",
+          },
+        ],
+        requirements,
+      ).map(({ field }) => field),
+    ).toEqual([
+      "criticality",
+      "failureBehavior",
+      "recoveryProcedure",
+      "operationalOwner",
+    ]);
+  });
 });

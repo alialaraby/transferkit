@@ -32,7 +32,11 @@ export function detectKnowledgeGaps<TField extends string>(
 ): KnowledgeGap<TField>[] {
   const completedFields = new Set(
     knowledgeEntries
-      .filter(({ status }) => status !== "skipped")
+      .filter(
+        ({ status, value }) =>
+          status !== "skipped" &&
+          (typeof value !== "string" || value.trim().length > 0),
+      )
       .map(({ entityId, field }) => `${entityId}\u0000${field}`),
   );
   const gaps: KnowledgeGap<TField>[] = [];
