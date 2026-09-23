@@ -1,5 +1,8 @@
 # TransferKit
 
+> Engineering handover and onboarding from real repository evidence.
+
+[![npm version](https://img.shields.io/npm/v/transferkit.svg)](https://www.npmjs.com/package/transferkit)
 [![CI](https://github.com/alialaraby/transferkit/actions/workflows/ci.yml/badge.svg)](https://github.com/alialaraby/transferkit/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node.js 24+](https://img.shields.io/badge/node-%3E%3D24-339933?logo=node.js&logoColor=white)](package.json)
