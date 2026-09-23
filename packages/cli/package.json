@@ -1,5 +1,5 @@
 {
-  "name": "@transferkit/cli",
+  "name": "transferkit",
   "version": "0.1.0",
   "description": "Local-first CLI for engineering handover and onboarding workflows",
   "license": "MIT",

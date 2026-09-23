@@ -16,7 +16,7 @@ Its current ecosystem support focuses on Node.js and TypeScript backends, with d
 ## Install
 
 ```bash
-npm install --global @transferkit/cli
+npm install --global transferkit
 ```
 
 Node.js 24 or newer is required. After installation, run `tk --help` to see the available commands.
