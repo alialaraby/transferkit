@@ -3,3 +3,4 @@ node_modules/
 docs/
 README.md
 package-lock.json
+fixtures/ast-analysis/unusable-tsconfig/tsconfig.json

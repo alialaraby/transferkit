@@ -1,34 +1,25 @@
 # TransferKit
 
-TransferKit is a local-first command-line tool for structured software ownership transfer. It scans a repository for supported system components, records evidence for what it finds, identifies missing operational knowledge, and turns the resulting structured state into handover and onboarding workflows.
+[![CI](https://github.com/alialaraby/transferkit/actions/workflows/ci.yml/badge.svg)](https://github.com/alialaraby/transferkit/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Node.js 24+](https://img.shields.io/badge/node-%3E%3D24-339933?logo=node.js&logoColor=white)](package.json)
+
+TransferKit is a local-first CLI for structured software ownership transfer. It discovers supported system components, records evidence, identifies missing operational knowledge, and turns structured project state into practical handover and onboarding workflows.
 
 Software ownership transfers often fail because repository facts, operational context, and a new owner's learning progress are mixed together in documents that quickly become stale. TransferKit separates them:
 
 - **Handover** builds shared knowledge about the system: what exists, how it operates, who owns it, and what is still unknown.
 - **Onboarding** creates a personal learning plan from repository evidence and available handover knowledge. Personal progress stays local and is not shared as project state.
 
-TransferKit is an early-stage project. Its current ecosystem support focuses on Node.js and TypeScript backends, with deeper detection for NestJS, RabbitMQ, scheduled jobs, PostgreSQL/TypeORM, outbound HTTP integrations, environment configuration, Docker, and GitHub Actions.
+Its current ecosystem support focuses on Node.js and TypeScript backends, with deeper detection for NestJS, RabbitMQ, scheduled jobs, PostgreSQL/TypeORM, outbound HTTP integrations, environment configuration, Docker, and GitHub Actions.
 
 ## Install
-
-TransferKit is not published to npm yet. After the first release, the intended installation command is:
 
 ```bash
 npm install --global @transferkit/cli
 ```
 
-For local development today:
-
-```bash
-git clone https://github.com/alialaraby/transferkit.git
-cd transferkit
-npm ci
-npm run build
-npm link --workspace @transferkit/cli
-tk --help
-```
-
-Node.js 22 or newer is required.
+Node.js 24 or newer is required. After installation, run `tk --help` to see the available commands.
 
 ## Quick start
 
@@ -77,8 +68,7 @@ Review generated handover files before committing them. Automated secret protect
 - Dynamic configuration, computed decorator metadata, and runtime-only behavior may not be discovered.
 - Evidence inspection performs a fresh scan rather than reading a persisted evidence index.
 - State migrations have an explicit boundary, but no historical migrations exist yet because schema version 1 is the first format.
-- npm packages are prepared but not published.
 
 ## Project status
 
-TransferKit is pre-release software. State formats and commands should be treated as unstable until the first public release. Feedback and focused contributions are welcome through GitHub issues and pull requests.
+TransferKit is early-stage software. State formats and commands may evolve before a stable release. Feedback and focused contributions are welcome through GitHub issues and pull requests.
