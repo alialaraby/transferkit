@@ -10,7 +10,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "tsc -b",
+    "build": "tsc -b && npm run bundle --workspace @transferkit/cli",
     "typecheck": "tsc -b",
     "lint": "eslint .",
     "format": "prettier --write .",
@@ -19,6 +19,7 @@
   },
   "devDependencies": {
     "@types/node": "^24.5.2",
+    "esbuild": "^0.25.0",
     "@eslint/js": "^9.36.0",
     "eslint": "^9.36.0",
     "eslint-config-prettier": "^10.1.8",

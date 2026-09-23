@@ -1,6 +1,7 @@
 {
   "name": "@transferkit/scanners",
   "version": "0.1.0",
+  "private": true,
   "description": "Repository scanners and static analysis for TransferKit",
   "license": "MIT",
   "author": "Ali Alaraby",
@@ -20,9 +21,6 @@
   "homepage": "https://github.com/alialaraby/transferkit#readme",
   "engines": {
     "node": ">=24"
-  },
-  "publishConfig": {
-    "access": "public"
   },
   "files": [
     "dist",

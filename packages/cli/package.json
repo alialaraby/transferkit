@@ -25,32 +25,19 @@
     "access": "public"
   },
   "files": [
-    "dist",
-    "!dist/**/*.test.*",
-    "!dist/bin.*",
-    "!dist/**/*.tsbuildinfo"
+    "dist/index.js"
   ],
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
   "bin": {
     "tk": "./dist/index.js"
   },
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    }
-  },
   "scripts": {
-    "build": "tsc -b",
+    "build": "tsc -b && npm run bundle",
+    "bundle": "node -e \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true })\" && esbuild src/index.ts --bundle --platform=node --format=esm --target=node24 --external:ts-morph --outfile=dist/index.js && node -e \"import { chmodSync } from 'node:fs'; chmodSync('dist/index.js', 0o755)\"",
     "prepack": "npm run build",
     "typecheck": "tsc -b --noEmit"
   },
   "dependencies": {
-    "@transferkit/core": "0.1.0",
-    "@transferkit/renderers": "0.1.0",
-    "@transferkit/scanners": "0.1.0",
-    "@transferkit/standards": "0.1.0"
+    "ts-morph": "^28.0.0"
   }
 }
