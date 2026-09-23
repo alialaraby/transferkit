@@ -1,7 +1,26 @@
 {
   "name": "@transferkit/core",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
+  "description": "Framework-independent domain model for TransferKit",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alialaraby/transferkit.git",
+    "directory": "packages/core"
+  },
+  "bugs": "https://github.com/alialaraby/transferkit/issues",
+  "homepage": "https://github.com/alialaraby/transferkit#readme",
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.test.*",
+    "!dist/**/*.tsbuildinfo"
+  ],
   "type": "module",
   "exports": {
     ".": {
@@ -11,6 +30,7 @@
   },
   "scripts": {
     "build": "tsc -b",
+    "prepack": "npm run build",
     "typecheck": "tsc -b --noEmit"
   }
 }

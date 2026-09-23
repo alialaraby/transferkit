@@ -4,6 +4,7 @@ import type {
   HandoverEntity,
   HandoverState,
 } from "@transferkit/core";
+import { redactLikelySecrets } from "@transferkit/core";
 
 export interface HandoverDocument {
   fileName: string;
@@ -222,16 +223,7 @@ function appendKnownFact(lines: string[], label: string, value?: string): void {
 
 export function sanitizeHandoverValue(value: unknown): string {
   if (typeof value !== "string") return "_Missing_";
-  return value
-    .replace(
-      /\b([A-Z][A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|KEY|CREDENTIAL)[A-Z0-9_]*)\s*=\s*([^\s,;]+)/gu,
-      "$1=[REDACTED]",
-    )
-    .replace(/\b(Bearer)\s+[A-Za-z0-9._~+/=-]+/giu, "$1 [REDACTED]")
-    .replace(
-      /([?&](?:token|secret|password|key|credential)=)[^&#\s]+/giu,
-      "$1[REDACTED]",
-    );
+  return redactLikelySecrets(value);
 }
 
 function document(fileName: string, lines: string[]): HandoverDocument {

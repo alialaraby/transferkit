@@ -1,7 +1,26 @@
 {
   "name": "@transferkit/standards",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
+  "description": "Ownership-transfer knowledge standards for TransferKit",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alialaraby/transferkit.git",
+    "directory": "packages/standards"
+  },
+  "bugs": "https://github.com/alialaraby/transferkit/issues",
+  "homepage": "https://github.com/alialaraby/transferkit#readme",
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.test.*",
+    "!dist/**/*.tsbuildinfo"
+  ],
   "type": "module",
   "exports": {
     ".": {
@@ -11,9 +30,10 @@
   },
   "scripts": {
     "build": "tsc -b",
+    "prepack": "npm run build",
     "typecheck": "tsc -b --noEmit"
   },
   "dependencies": {
-    "@transferkit/core": "0.0.0"
+    "@transferkit/core": "0.1.0"
   }
 }

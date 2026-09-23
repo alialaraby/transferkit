@@ -1,4 +1,8 @@
 import type { OnboardingPlan, OnboardingTask } from "./onboarding-plan.js";
+import {
+  currentSchemaVersion,
+  requireCurrentSchemaVersion,
+} from "./state-version.js";
 
 export type OnboardingTaskStatus =
   "not-started" | "in-progress" | "completed" | "skipped";
@@ -73,7 +77,19 @@ export function updateOnboardingTaskProgress(
 export function parseOnboardingProgress(
   contents: string,
 ): OnboardingProgressState {
-  const value: unknown = JSON.parse(contents);
+  let value: unknown;
+  try {
+    value = JSON.parse(contents);
+  } catch {
+    throw new Error("TransferKit onboarding progress is not valid JSON");
+  }
+  return migrateOnboardingProgress(value);
+}
+
+export function migrateOnboardingProgress(
+  value: unknown,
+): OnboardingProgressState {
+  requireCurrentSchemaVersion(value, "TransferKit onboarding progress");
   if (!isOnboardingProgressState(value)) {
     throw new Error("Invalid TransferKit onboarding progress state");
   }
@@ -95,7 +111,7 @@ function isOnboardingProgressState(
 ): value is OnboardingProgressState {
   return (
     isRecord(value) &&
-    value.schemaVersion === 1 &&
+    value.schemaVersion === currentSchemaVersion &&
     Array.isArray(value.tasks) &&
     value.tasks.every(isOnboardingTaskProgress)
   );

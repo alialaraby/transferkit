@@ -25,7 +25,7 @@ describe("handover state", () => {
 
   it("rejects invalid state", () => {
     expect(() => parseHandoverState('{"schemaVersion":2}')).toThrow(
-      "Invalid TransferKit handover state",
+      "unsupported newer schema version 2",
     );
   });
 });

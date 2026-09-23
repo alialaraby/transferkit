@@ -1,4 +1,5 @@
 import {
+  containsLikelySecret,
   detectKnowledgeGaps,
   type HandoverState,
   type InterviewQuestion,
@@ -123,6 +124,12 @@ export async function runHandoverInterview(
         }
         if (answer.length === 0) {
           io.write("Enter an answer, or explicitly enter skip or cancel.");
+          continue;
+        }
+        if (containsLikelySecret(answer)) {
+          io.write(
+            "That answer resembles a secret and was not saved. Describe where the secret is managed without including its value.",
+          );
           continue;
         }
         const normalizedAnswer = normalizeAnswer(question, answer);

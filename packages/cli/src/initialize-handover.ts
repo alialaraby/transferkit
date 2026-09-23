@@ -1,7 +1,11 @@
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 
-import { createProjectState, serializeProjectState } from "@transferkit/core";
+import {
+  createProjectState,
+  parseProjectState,
+  serializeProjectState,
+} from "@transferkit/core";
 
 const stateDirectoryName = ".transferkit";
 const projectFileName = "project.yaml";
@@ -29,6 +33,7 @@ export async function initializeHandover(
     if (isNodeError(error) && error.code === "EEXIST") {
       const existingState = await stat(projectFile);
       if (existingState.isFile()) {
+        parseProjectState(await readFile(projectFile, "utf8"));
         return { status: "already-initialized", projectFile };
       }
     }

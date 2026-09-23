@@ -1,4 +1,8 @@
 import type { KnowledgeEntry } from "./knowledge-gaps.js";
+import {
+  currentSchemaVersion,
+  requireCurrentSchemaVersion,
+} from "./state-version.js";
 
 export interface HandoverEntity {
   id: string;
@@ -32,10 +36,18 @@ export function createHandoverState(): HandoverState {
 }
 
 export function parseHandoverState(contents: string): HandoverState {
-  const value: unknown = JSON.parse(contents);
+  const value: unknown = parseJson(contents, "TransferKit handover state");
+  requireCurrentSchemaVersion(value, "TransferKit handover state");
   if (!isHandoverState(value)) {
     throw new Error("Invalid TransferKit handover state");
   }
+  return value;
+}
+
+export function migrateHandoverState(value: unknown): HandoverState {
+  requireCurrentSchemaVersion(value, "TransferKit handover state");
+  if (!isHandoverState(value))
+    throw new Error("Invalid TransferKit handover state");
   return value;
 }
 
@@ -46,12 +58,20 @@ export function serializeHandoverState(state: HandoverState): string {
 function isHandoverState(value: unknown): value is HandoverState {
   if (!isRecord(value)) return false;
   return (
-    value.schemaVersion === 1 &&
+    value.schemaVersion === currentSchemaVersion &&
     Array.isArray(value.entities) &&
     value.entities.every(isHandoverEntity) &&
     Array.isArray(value.knowledge) &&
     value.knowledge.every(isKnowledgeEntry)
   );
+}
+
+function parseJson(contents: string, stateName: string): unknown {
+  try {
+    return JSON.parse(contents);
+  } catch {
+    throw new Error(`${stateName} is not valid JSON`);
+  }
 }
 
 function isHandoverEntity(value: unknown): value is HandoverEntity {
