@@ -1,3 +1,5 @@
 # @transferkit/standards
 
-Ownership-transfer knowledge requirements and planning used by TransferKit. Most users should install [`@transferkit/cli`](https://github.com/alialaraby/transferkit) instead.
+Knowledge requirements and engineering handover standards used by TransferKit.
+
+This package is published as a runtime building block for [`@transferkit/cli`](https://github.com/alialaraby/transferkit). It is not currently presented as a stable standalone public API.

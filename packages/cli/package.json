@@ -1,8 +1,16 @@
 {
   "name": "@transferkit/cli",
   "version": "0.1.0",
-  "description": "Local-first CLI for structured software ownership transfer",
-  "license": "UNLICENSED",
+  "description": "Local-first CLI for engineering handover and onboarding workflows",
+  "license": "MIT",
+  "author": "Ali Alaraby",
+  "keywords": [
+    "handover",
+    "onboarding",
+    "cli",
+    "developer-tools",
+    "knowledge-transfer"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/alialaraby/transferkit.git",
@@ -11,7 +19,7 @@
   "bugs": "https://github.com/alialaraby/transferkit/issues",
   "homepage": "https://github.com/alialaraby/transferkit#readme",
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   },
   "publishConfig": {
     "access": "public"
@@ -23,6 +31,8 @@
     "!dist/**/*.tsbuildinfo"
   ],
   "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "bin": {
     "tk": "./dist/index.js"
   },

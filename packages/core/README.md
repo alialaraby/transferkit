@@ -1,3 +1,5 @@
 # @transferkit/core
 
-Framework-independent domain contracts and deterministic ownership-transfer logic used by TransferKit. Most users should install [`@transferkit/cli`](https://github.com/alialaraby/transferkit) instead.
+Core domain models and deterministic handover and onboarding logic used by TransferKit.
+
+This package is published as a runtime building block for [`@transferkit/cli`](https://github.com/alialaraby/transferkit). It is not currently presented as a stable standalone public API.

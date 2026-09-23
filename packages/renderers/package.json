@@ -1,8 +1,15 @@
 {
   "name": "@transferkit/renderers",
   "version": "0.1.0",
-  "description": "Human-readable output renderers for TransferKit",
-  "license": "UNLICENSED",
+  "description": "Renderers for TransferKit handover and onboarding output",
+  "license": "MIT",
+  "author": "Ali Alaraby",
+  "keywords": [
+    "handover",
+    "onboarding",
+    "documentation",
+    "knowledge-transfer"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/alialaraby/transferkit.git",
@@ -11,7 +18,7 @@
   "bugs": "https://github.com/alialaraby/transferkit/issues",
   "homepage": "https://github.com/alialaraby/transferkit#readme",
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   },
   "publishConfig": {
     "access": "public"
@@ -22,6 +29,8 @@
     "!dist/**/*.tsbuildinfo"
   ],
   "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
