@@ -20,6 +20,28 @@ const entity = {
 };
 
 describe("runHandoverInterview", () => {
+  it("blocks secret-like answers before persistence", async () => {
+    const directory = await projectWithState({
+      schemaVersion: 1,
+      entities: [entity],
+      knowledge: [],
+    });
+    const io = scriptedIo([
+      "API_KEY=abcdefghijklmnop",
+      "1",
+      "Dead-letter queue",
+      "Team Platform",
+    ]);
+
+    await runHandoverInterview(directory, io);
+
+    expect(io.output).toContain(
+      "That answer resembles a secret and was not saved. Describe where the secret is managed without including its value.",
+    );
+    expect(JSON.stringify(await readHandoverState(directory))).not.toContain(
+      "abcdefghijklmnop",
+    );
+  });
   it("asks three grouped questions and persists all four missing fields", async () => {
     const directory = await projectWithState({
       schemaVersion: 1,

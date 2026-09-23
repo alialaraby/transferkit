@@ -24,7 +24,12 @@ export async function loadOnboardingProgress(
   try {
     state = parseOnboardingProgress(await readFile(file, "utf8"));
   } catch (error) {
-    if (!isNodeError(error) || error.code !== "ENOENT") throw error;
+    if (!isNodeError(error) || error.code !== "ENOENT") {
+      throw new Error(
+        `Invalid TransferKit state in ${onboardingProgressFileName}`,
+        { cause: error },
+      );
+    }
     state = createOnboardingProgress(plan);
   }
   const reconciled = reconcileOnboardingProgress(state, plan);

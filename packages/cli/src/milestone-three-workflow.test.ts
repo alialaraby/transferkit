@@ -9,6 +9,7 @@ import type { Finding } from "@transferkit/core";
 
 import { handoverStateFileName, readHandoverState } from "./handover-state.js";
 import { runCli, type CliEnvironment } from "./index.js";
+import { planOnboarding } from "./plan-onboarding.js";
 
 const fixture = join(
   dirname(fileURLToPath(import.meta.url)),
@@ -116,6 +117,20 @@ describe("Milestone 3 RabbitMQ workflow", () => {
     expect(onboarded.stdout[0]).toContain(
       "⚠ Operational owner for shipment-webhooks was not documented during handover.",
     );
+
+    const plan = await planOnboarding(directory);
+    const firstTask = plan.stages[0]?.tasks[0];
+    if (firstTask === undefined) throw new Error("Expected onboarding task");
+    const progressed = await command(directory, [
+      "onboard",
+      "task",
+      firstTask.id,
+      "completed",
+    ]);
+    expect(progressed.exitCode).toBe(0);
+    const status = await command(directory, ["onboard", "status"]);
+    expect(status.exitCode).toBe(0);
+    expect(status.stdout[0]).toContain(`✓ Completed: ${firstTask.title}`);
 
     await expect(
       command(directory, ["handover", "scan"]),

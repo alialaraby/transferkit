@@ -14,6 +14,7 @@ import {
 
 import { auditHandover } from "./audit-handover.js";
 import { exportHandover } from "./export-handover.js";
+import { inspectEvidence } from "./evidence.js";
 import { initializeHandover } from "./initialize-handover.js";
 import { runHandoverInterview } from "./interview-handover.js";
 import { planOnboarding } from "./plan-onboarding.js";
@@ -49,7 +50,7 @@ export async function runCli(
     args[2] === "--single";
   const taskUpdate =
     args.length === 4 && args[0] === "onboard" && args[1] === "task";
-  if (args.length === 1 && isHelpFlag(args[0])) {
+  if (args.length === 0 || (args.length === 1 && isHelpFlag(args[0]))) {
     environment.stdout(usage);
     return 0;
   }
@@ -68,8 +69,8 @@ export async function runCli(
     !taskUpdate &&
     (args.length !== 2 || (args[0] !== "handover" && args[0] !== "onboard"))
   ) {
-    environment.stderr(usage);
-    return 1;
+    environment.stderr(`Error: invalid command usage.\n\n${usage}`);
+    return 2;
   }
 
   try {
@@ -97,8 +98,8 @@ export async function runCli(
       const taskId = args[2];
       const status = args[3];
       if (taskId === undefined || !isTaskStatus(status)) {
-        environment.stderr(onboardUsage);
-        return 1;
+        environment.stderr(`Error: invalid task status.\n\n${onboardUsage}`);
+        return 2;
       }
       const plan = await planOnboarding(environment.cwd);
       await setOnboardingTaskStatus(environment.cwd, plan, taskId, status);
@@ -107,8 +108,10 @@ export async function runCli(
     }
 
     if (args[0] !== "handover") {
-      environment.stderr(usage);
-      return 1;
+      environment.stderr(
+        `Error: unknown command '${args[1]}'.\n\n${onboardUsage}`,
+      );
+      return 2;
     }
 
     if (args[1] === "init") {
@@ -129,6 +132,11 @@ export async function runCli(
           2,
         ),
       );
+      return 0;
+    }
+
+    if (args[1] === "evidence") {
+      environment.stdout(await inspectEvidence(environment.cwd));
       return 0;
     }
 
@@ -157,25 +165,66 @@ export async function runCli(
       return 0;
     }
 
-    environment.stderr(usage);
-    return 1;
+    environment.stderr(
+      `Error: unknown command '${args[1]}'.\n\n${handoverUsage}`,
+    );
+    return 2;
   } catch (error) {
-    environment.stderr(`TransferKit failed: ${errorMessage(error)}`);
+    environment.stderr(`Error: ${diagnosticMessage(error)}`);
     return 1;
   }
 }
 
-const usage =
-  "Usage: tk handover <init|scan|interview|audit|export> | tk onboard <plan|status|task>";
-const handoverUsage =
-  "Usage: tk handover <init|scan|interview|audit|export> [--single]";
-const onboardUsage =
-  "Usage: tk onboard <plan|status> | tk onboard task <task-id> <not-started|in-progress|completed|skipped>";
+const usage = `TransferKit — structured software ownership transfer
+
+Usage:
+  tk handover <command>
+  tk onboard <command>
+
+Commands:
+  handover   Build and inspect shared handover knowledge
+  onboard    Plan and track personal onboarding
+
+Run 'tk handover --help' or 'tk onboard --help' for command details.`;
+const handoverUsage = `Build and inspect handover knowledge
+
+Usage: tk handover <command>
+
+Commands:
+  init                 Initialize .transferkit state
+  scan                 Scan the repository and update discovered entities
+  evidence             Show why repository findings were discovered
+  interview            Capture missing handover knowledge
+  audit                Report handover completeness
+  export [--single]    Generate handover Markdown`;
+const onboardUsage = `Plan and track onboarding
+
+Usage:
+  tk onboard plan
+  tk onboard status
+  tk onboard task <task-id> <status>
+
+Commands:
+  plan      Generate an onboarding plan
+  status    Show onboarding progress
+  task      Set status: not-started, in-progress, completed, or skipped`;
 
 function isHelpFlag(value: string | undefined): boolean {
   return value === "--help" || value === "-h";
 }
 
-function errorMessage(error: unknown): string {
+function diagnosticMessage(error: unknown): string {
+  if (isNodeError(error)) {
+    if (error.code === "EACCES" || error.code === "EPERM") {
+      return `Permission denied${error.path === undefined ? "" : `: ${error.path}`}`;
+    }
+    if (error.code === "ENOENT") {
+      return `Required file or directory not found${error.path === undefined ? "" : `: ${error.path}`}`;
+    }
+  }
   return error instanceof Error ? error.message : String(error);
+}
+
+function isNodeError(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && "code" in error;
 }

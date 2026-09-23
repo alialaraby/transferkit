@@ -1,22 +1,40 @@
-# TransferKit Architecture
+# Architecture
 
-TransferKit is a local-first CLI that turns repository evidence and human knowledge into structured ownership-transfer information. Structured data is the source of truth; human-readable documents are generated views of that state.
+TransferKit is a local-first TypeScript CLI. Structured state is authoritative; Markdown and terminal output are derived views.
 
-## Repository structure
+## Processing pipeline
 
 ```text
-packages/       TransferKit workspace packages
-  cli/          command-line entrypoints and orchestration
-  core/         framework-independent domain concepts and logic
-  scanners/     repository and technology detection
-  standards/    expected knowledge definitions
-  renderers/    human-readable output formatting
-fixtures/       small repositories used as automated test inputs
-examples/       human-facing usage examples, when added
-docs/           public project documentation
+Repository
+    ↓
+Scanners
+    ↓
+Findings + Evidence
+    ↓
+Model Builder
+    ↓
+System Model
+    ↓
+Requirements
+    ↓
+Gaps
+    ↓
+Knowledge
+    ↓
+Audit / Export / Onboarding
 ```
 
-Fixtures are test data and may be deliberately incomplete. Examples are intended for people to read and run; the two should not be mixed.
+1. **Repository:** Source files and repository configuration are read locally.
+2. **Scanners:** Technology-specific code performs deterministic detection.
+3. **Findings + Evidence:** Each observation carries its source and explanation.
+4. **Model Builder:** Scanner-specific observations become stable domain entities.
+5. **System Model:** `.transferkit/handover.json` persists discovered entities and human knowledge.
+6. **Requirements:** Standards select expected knowledge for each entity kind.
+7. **Gaps:** Core logic compares requirements with current knowledge.
+8. **Knowledge:** The CLI interview captures a small number of high-value answers.
+9. **Outputs:** Audits, Markdown exports, and onboarding plans consume structured state.
+
+Generated Markdown never becomes an alternate state store. Personal onboarding progress is persisted separately in `.transferkit.local/`.
 
 ## Package boundaries
 
@@ -38,32 +56,14 @@ The allowed dependency direction is:
 
 Dependencies must point toward `core`; circular package dependencies are not allowed.
 
-## Information flow
+## Persistence
 
-```text
-repository
-    ↓
-scanner
-    ↓
-findings + evidence
-    ↓
-canonical system model
-    ↓
-CLI and renderers
-```
+Shared state uses schema-versioned files under `.transferkit/`. Readers validate structure and reject unsupported versions. Explicit migration entry points provide the boundary for future migrations; schema version 1 has no historical predecessor.
 
-A scanner records what it can support with repository evidence. Core logic combines those structured observations into a framework-independent model. Later consumers operate on that model rather than reparsing generated Markdown or relying on scanner-specific representations.
+Writes use temporary files followed by rename where state can be updated repeatedly. Generated export files are replaceable outputs. Unrelated user files in the export directory are preserved.
 
-## Design principles
+## Privacy and failure boundaries
 
-### Structured data first
+Repository scanning has no implicit network or AI integration. Environment detection stores names rather than values. Human answers resembling common secrets are rejected before persistence, and renderers redact common credential patterns as a final safeguard.
 
-Persisted structured state is authoritative. Markdown and other presentation formats are outputs and must not become an alternate state store.
-
-### Local first
-
-Repository analysis and project state stay local by default. Core workflows must not require a hosted service, and source code must not be transmitted implicitly.
-
-### Framework-independent core
-
-Framework and technology details belong at the scanner boundary. Core types and rules should express software ownership concepts without depending on NestJS, RabbitMQ, or any other specific implementation technology.
+Filesystem, scanner, configuration, and state-validation failures cross the CLI boundary as concise user-facing errors. Underlying error causes remain available internally without exposing stack traces by default.

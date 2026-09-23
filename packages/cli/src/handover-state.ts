@@ -20,7 +20,9 @@ export async function readHandoverState(
     if (isNodeError(error) && error.code === "ENOENT") {
       return createHandoverState();
     }
-    throw error;
+    throw new Error(`Invalid TransferKit state in ${handoverStateFileName}`, {
+      cause: error,
+    });
   }
 }
 

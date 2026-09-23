@@ -1,0 +1,7 @@
+services:
+  api:
+    build: .
+    environment:
+      DATABASE_URL: postgresql://example:example@database:5432/shipments
+  database:
+    image: postgres:17-alpine

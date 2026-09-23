@@ -43,4 +43,17 @@ describe("initializeHandover", () => {
       originalContents,
     );
   });
+
+  it("rejects unsupported existing project metadata", async () => {
+    const projectDirectory = await mkdtemp(join(tmpdir(), "transferkit-init-"));
+    const initialized = await initializeHandover(projectDirectory);
+    await writeFile(
+      initialized.projectFile,
+      'schemaVersion: 2\nproject:\n  name: "future"\n  initializedAt: "2026-09-22T10:15:30.000Z"\n',
+    );
+
+    await expect(initializeHandover(projectDirectory)).rejects.toThrow(
+      "unsupported newer schema version 2",
+    );
+  });
 });

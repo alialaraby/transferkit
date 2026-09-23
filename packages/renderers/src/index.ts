@@ -56,13 +56,17 @@ export function renderOnboardingPlan(plan: OnboardingPlan): string {
     lines.push("", stage.title, "");
     for (const task of stage.tasks) {
       lines.push(
-        `[ ] ${task.title}${task.description === undefined ? "" : ` — ${task.description}`}`,
+        `[ ] ${sanitizeHandoverValue(task.title)}${task.description === undefined ? "" : ` — ${sanitizeHandoverValue(task.description)}`}`,
       );
     }
   }
   if (plan.missingInformation.length > 0) {
     lines.push("", "Missing handover information", "");
-    lines.push(...plan.missingInformation.map(({ message }) => `⚠ ${message}`));
+    lines.push(
+      ...plan.missingInformation.map(
+        ({ message }) => `⚠ ${sanitizeHandoverValue(message)}`,
+      ),
+    );
   }
   return lines.join("\n");
 }
@@ -88,14 +92,19 @@ export function renderOnboardingStatus(
       const status = progressById.get(id)?.status ?? "not-started";
       return status === "in-progress" || status === "not-started";
     });
-  if (next !== undefined) lines.push("", `Next: ${next.title} (${next.id})`);
+  if (next !== undefined)
+    lines.push(
+      "",
+      `Next: ${sanitizeHandoverValue(next.title)} (${sanitizeHandoverValue(next.id)})`,
+    );
   else if (lines.length > 0)
     lines.push("", "All onboarding tasks are complete or skipped.");
   if (readiness.items.length > 0) {
     lines.push("", "Ownership-readiness evidence", "");
     lines.push(
       ...readiness.items.map(
-        ({ status, statement }) => `${evidenceMarker(status)} ${statement}`,
+        ({ status, statement }) =>
+          `${evidenceMarker(status)} ${sanitizeHandoverValue(statement)}`,
       ),
     );
   }
@@ -159,5 +168,7 @@ function appendField(
   value: string | undefined,
   missing = "Missing",
 ): void {
-  lines.push(`- **${label}:** ${value ?? `_${missing}_`}`);
+  lines.push(
+    `- **${label}:** ${value === undefined ? `_${missing}_` : sanitizeHandoverValue(value)}`,
+  );
 }
