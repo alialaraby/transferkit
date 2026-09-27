@@ -16,7 +16,11 @@ describe("realistic NestJS repository scan", () => {
 
     expect(kinds).toEqual(
       new Set([
+        "application.controller",
+        "application.dependency",
         "application.module",
+        "application.route",
+        "application.service",
         "technology",
         "language",
         "framework",
@@ -53,6 +57,22 @@ describe("realistic NestJS repository scan", () => {
           data: expect.objectContaining({
             endpoint: "https://partner.example.test/shipments",
           }),
+        }),
+        expect.objectContaining({
+          kind: "application.dependency",
+          data: {
+            source: "PaymentController",
+            target: "PaymentService",
+            dependencyKind: "constructor",
+          },
+        }),
+        expect.objectContaining({
+          kind: "application.dependency",
+          data: {
+            source: "PaymentService",
+            target: "Payment",
+            dependencyKind: "repository-entity",
+          },
         }),
         expect.objectContaining({
           kind: "ci.workflow",

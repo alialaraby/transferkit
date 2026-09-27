@@ -4,7 +4,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-import { runCli, type CliEnvironment } from "./cli.js";
+import type { CliEnvironment } from "./cli.js";
+import { runLegacyCli as runCli } from "./legacy-cli.test-helper.js";
 import { readHandoverState, writeHandoverState } from "./handover-state.js";
 import { loadGuidedHandover } from "./guided-handover.js";
 
@@ -131,7 +132,7 @@ describe("guided handover commands", () => {
       ]),
     );
     const before = await command(cwd, ["handover", "status"]);
-    expect(before.text).toContain("Scheduled Jobs 1/7");
+    expect(before.text).toContain("Scheduled Jobs 2/14");
     const mapped = await command(
       cwd,
       ["handover", "next"],
@@ -142,7 +143,7 @@ describe("guided handover commands", () => {
     );
     expect(mapped.text).toContain("Saved 2 mapped topics");
     const after = await command(cwd, ["handover", "status"]);
-    expect(after.text).toContain("Scheduled Jobs 3/7");
+    expect(after.text).toContain("Scheduled Jobs 4/14");
     const audit = await command(cwd, ["handover", "audit"]);
     expect(audit.text).toContain(
       "✓ covered (human) ShipmentJobs.reconcileShipments: Job purpose and business impact",

@@ -4,7 +4,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { runCli, type CliEnvironment } from "./index.js";
+import type { CliEnvironment } from "./index.js";
+import { runLegacyCli as runCli } from "./legacy-cli.test-helper.js";
 import { loadOnboardingProgress } from "./onboarding-progress.js";
 import { planOnboarding } from "./plan-onboarding.js";
 

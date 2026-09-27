@@ -17,6 +17,31 @@ export * from "./onboarding-progress.js";
 export * from "./ownership-readiness.js";
 export * from "./secret-protection.js";
 export * from "./state-version.js";
+export {
+  transferSchemaVersion,
+  createTransfer,
+  evaluateItemCompletion,
+  sectionProgress,
+  markItemDone,
+  shouldAddSuggestion,
+  type Transfer,
+  type HandoverPlan as TransferHandoverPlan,
+  type HandoverSection,
+  type HandoverItem,
+  type ItemType,
+  type ItemPriority,
+  type ItemStatus,
+  type SectionStatus,
+  type ChecklistPoint,
+  type Attachment,
+  type RepositoryContext,
+  type SuggestionDecision,
+  type CompletionReason,
+  type CompletionResult,
+} from "./transfer.js";
+export * from "./transfer-state.js";
+export * from "./transfer-plan-review.js";
+export * from "./project-understanding.js";
 
 export interface Evidence {
   file: string;

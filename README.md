@@ -7,11 +7,11 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node.js 24+](https://img.shields.io/badge/node-%3E%3D24-339933?logo=node.js&logoColor=white)](package.json)
 
-TransferKit is a local-first CLI for structured software ownership transfer. It discovers supported system components, records evidence, identifies missing operational knowledge, and turns structured project state into practical handover and onboarding workflows.
+TransferKit is a local-first CLI for structured software ownership transfer. It discovers supported system components, records evidence, and turns structured project state into practical handover and onboarding workflows.
 
 Software ownership transfers often fail because repository facts, operational context, and a new owner's learning progress are mixed together in documents that quickly become stale. TransferKit separates them:
 
-- **Handover** builds shared knowledge about the system: what exists, how it operates, who owns it, and what is still unknown.
+- **Handover** builds a shared ownership-transfer plan: what the next owner needs to learn, do, verify, and take over.
 - **Onboarding** creates a personal learning plan from repository evidence and available handover knowledge. Personal progress stays local and is not shared as project state.
 
 Its current ecosystem support focuses on Node.js and TypeScript backends, with deeper detection for NestJS, RabbitMQ, scheduled jobs, PostgreSQL/TypeORM, outbound HTTP integrations, environment configuration, Docker, and GitHub Actions.
@@ -31,16 +31,16 @@ Run these commands from the repository being transferred:
 ```bash
 tk handover init
 tk handover scan
-tk handover evidence
-tk handover interview
-tk handover audit
-tk handover export
+tk handover plan
+# Review and edit HANDOVER.md in your IDE
+tk handover sync
+tk handover status
 
 tk onboard plan
 tk onboard status
 ```
 
-`handover scan` updates structured repository-derived state. `handover evidence` explains each finding with its source file and line where available. `handover interview` asks a small number of high-value questions. `handover export` generates Markdown under `.transferkit/handover/`.
+`handover scan` refreshes suggestions in `.transferkit/transfer.json`. `handover plan` creates or reviews the plan and generates root-level `HANDOVER.md`. Edit its checkboxes and supported fields, then run `handover sync` and `handover status`. Use `handover evidence` to inspect repository findings when needed.
 
 To update personal onboarding progress:
 
@@ -53,7 +53,7 @@ See the [workflow example](examples/workflow.md) for representative output and [
 
 ## Local-first and private by default
 
-TransferKit scans files and computes results locally. It does not make implicit AI or network calls, and it does not upload source code. Shared state lives in `.transferkit/`; personal onboarding progress lives in Git-ignored `.transferkit.local/`. Environment detection records variable names, not values. Obvious secret-like interview answers are rejected, and generated output redacts common credential patterns.
+TransferKit scans files and computes results locally. It does not make implicit AI or network calls, and it does not upload source code. Shared state lives in `.transferkit/`; personal onboarding progress lives in Git-ignored `.transferkit.local/`. Environment detection records variable names, not values.
 
 Review generated handover files before committing them. Automated secret protection is deliberately lightweight and is not a replacement for repository secret scanning.
 

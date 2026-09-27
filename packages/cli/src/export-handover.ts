@@ -26,6 +26,8 @@ export async function exportHandover(
   workingDirectory: string,
   options: ExportHandoverOptions = {},
 ): Promise<string> {
+  if (options.single === true)
+    await protectV3Workspace(join(workingDirectory, singleFileExportName));
   const { plan, context } = await loadGuidedHandover(workingDirectory, false);
   const projectName = await packageName(workingDirectory);
   const documents = renderHandoverPackageV2(plan, projectName, context);
@@ -50,6 +52,19 @@ export async function exportHandover(
     await unlink(join(directory, fileName));
   }
   return directory;
+}
+
+async function protectV3Workspace(file: string): Promise<void> {
+  try {
+    const existing = await readFile(file, "utf8");
+    if (existing.includes("<!-- tk:handover-v3 -->"))
+      throw new Error(
+        "Cannot replace the active v3 HANDOVER.md with a legacy export",
+      );
+  } catch (error) {
+    if (!(error instanceof Error && "code" in error && error.code === "ENOENT"))
+      throw error;
+  }
 }
 
 const previousGenerated = new Set([

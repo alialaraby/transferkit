@@ -3,34 +3,24 @@ import { packageName as renderersPackageName } from "@transferkit/renderers";
 import { packageName as scannersPackageName } from "@transferkit/scanners";
 import { packageName as standardsPackageName } from "@transferkit/standards";
 import {
-  renderHandoverCoverageAudit,
   renderOnboardingPlan,
   renderOnboardingStatus,
 } from "@transferkit/renderers";
 import {
   buildOwnershipReadinessEvidence,
-  summarizeHandoverCoverage,
   isTaskStatus,
 } from "@transferkit/core";
-
-import {
-  addGuidedTopic,
-  loadGuidedHandover,
-  nextGuidedHandover,
-  startGuidedHandover,
-  statusGuidedHandover,
-} from "./guided-handover.js";
-import { manageBusinessFlow } from "./business-flows.js";
-import { exportHandover } from "./export-handover.js";
 import { inspectEvidence } from "./evidence.js";
 import { initializeHandover } from "./initialize-handover.js";
-import { runHandoverInterview } from "./interview-handover.js";
 import { planOnboarding } from "./plan-onboarding.js";
 import {
   loadOnboardingProgress,
   setOnboardingTaskStatus,
 } from "./onboarding-progress.js";
-import { scanHandover } from "./scan-handover.js";
+import { planTransfer, refreshTransferSuggestions } from "./plan-transfer.js";
+import { syncTransfer } from "./sync-transfer.js";
+import { readTransferState } from "./transfer-state.js";
+import { renderTransferStatus } from "./transfer-status.js";
 
 export const packageName = "@transferkit/cli";
 export const dependencies = [
@@ -51,15 +41,10 @@ export async function runCli(
   args: readonly string[],
   environment: CliEnvironment,
 ): Promise<number> {
-  const singleExport =
-    args.length === 3 &&
-    args[0] === "handover" &&
-    args[1] === "export" &&
-    args[2] === "--single";
-  const flowCommand =
-    args.length === 3 && args[0] === "handover" && args[1] === "flow";
   const taskUpdate =
     args.length === 4 && args[0] === "onboard" && args[1] === "task";
+  const planCommand =
+    args[0] === "handover" && args[1] === "plan" && args.length >= 2;
   if (args.length === 0 || (args.length === 1 && isHelpFlag(args[0]))) {
     environment.stdout(usage);
     return 0;
@@ -74,10 +59,16 @@ export async function runCli(
     return 0;
   }
 
+  if (args[0] === "handover" && legacyHandoverCommands.has(args[1] ?? "")) {
+    environment.stderr(
+      "This command belongs to the legacy Handover workflow. Use: tk handover plan",
+    );
+    return 2;
+  }
+
   if (
-    !singleExport &&
-    !flowCommand &&
     !taskUpdate &&
+    !planCommand &&
     (args.length !== 2 || (args[0] !== "handover" && args[0] !== "onboard"))
   ) {
     environment.stderr(`Error: invalid command usage.\n\n${usage}`);
@@ -125,21 +116,10 @@ export async function runCli(
       return 2;
     }
 
-    if (flowCommand) {
-      const action = args[2];
-      if (
-        !action ||
-        !["list", "add", "confirm", "rename", "ignore", "document"].includes(
-          action,
-        )
-      ) {
-        environment.stderr(`Error: invalid flow action.\n\n${handoverUsage}`);
-        return 2;
-      }
-      await manageBusinessFlow(environment.cwd, action, {
-        write: environment.stdout,
-        read: environment.prompt,
-      });
+    if (planCommand) {
+      environment.stdout(
+        await planTransfer(environment.cwd, args[2], args.slice(3)),
+      );
       return 0;
     }
 
@@ -153,80 +133,36 @@ export async function runCli(
       return 0;
     }
 
-    if (args[1] === "start") {
-      await startGuidedHandover(environment.cwd, { write: environment.stdout });
-      return 0;
-    }
-
     if (args[1] === "status") {
-      await statusGuidedHandover(environment.cwd, {
-        write: environment.stdout,
-      });
+      const transfer = await readTransferState(environment.cwd);
+      if (!transfer)
+        throw new Error("No v3 Handover Plan found. Use: tk handover plan");
+      environment.stdout(renderTransferStatus(transfer));
       return 0;
     }
 
-    if (args[1] === "next" || args[1] === "resume" || args[1] === "revisit") {
-      await nextGuidedHandover(
-        environment.cwd,
-        {
-          write: environment.stdout,
-          read: environment.prompt,
-        },
-        args[1] === "revisit",
-      );
-      return 0;
-    }
-
-    if (args[1] === "add-topic") {
-      await addGuidedTopic(environment.cwd, {
-        write: environment.stdout,
-        read: environment.prompt,
-      });
+    if (args[1] === "sync") {
+      environment.stdout(await syncTransfer(environment.cwd));
       return 0;
     }
 
     if (args[1] === "scan") {
+      const { transfer, findingsCount } = await refreshTransferSuggestions(
+        environment.cwd,
+      );
+      const pending = transfer.plan.items.filter(
+        (item) =>
+          item.provenance.kind === "SUGGESTED" &&
+          item.provenance.decision === "PENDING",
+      ).length;
       environment.stdout(
-        JSON.stringify(
-          { findings: await scanHandover(environment.cwd) },
-          null,
-          2,
-        ),
+        `Scanned repository: ${findingsCount} findings, ${pending} suggestions pending review. Use: tk handover plan`,
       );
       return 0;
     }
 
     if (args[1] === "evidence") {
       environment.stdout(await inspectEvidence(environment.cwd));
-      return 0;
-    }
-
-    if (args[1] === "interview") {
-      if (environment.prompt === undefined) {
-        throw new Error("Interactive input is unavailable");
-      }
-      await runHandoverInterview(environment.cwd, {
-        write: environment.stdout,
-        read: environment.prompt,
-      });
-      return 0;
-    }
-
-    if (args[1] === "audit") {
-      environment.stdout(
-        renderHandoverCoverageAudit(
-          summarizeHandoverCoverage(
-            (await loadGuidedHandover(environment.cwd)).plan,
-          ),
-        ),
-      );
-      return 0;
-    }
-
-    if (args[1] === "export") {
-      environment.stdout(
-        `Generated ${await exportHandover(environment.cwd, { single: singleExport })}`,
-      );
       return 0;
     }
 
@@ -247,28 +183,34 @@ Usage:
   tk onboard <command>
 
 Commands:
-  handover   Build and inspect shared handover knowledge
+  handover   Build and track an ownership transfer
   onboard    Plan and track personal onboarding
 
 Run 'tk handover --help' or 'tk onboard --help' for command details.`;
-const handoverUsage = `Build and inspect handover knowledge
+const handoverUsage = `Build and track a Handover Plan
 
 Usage: tk handover <command>
 
-Commands:
-  init                 Initialize .transferkit state
-  start                Show the guided handover plan and starting point
-  next                 Cover the next high-value handover topic
-  status               Show requirement coverage and remaining gaps
-  resume               Continue from shared handover state
-  revisit              Return to a skipped handover topic
-  add-topic            Add a project-specific handover topic
-  flow <action>        List, add, confirm, rename, ignore, or document a business flow
-  scan                 Scan the repository and update discovered entities
-  evidence             Show why repository findings were discovered
-  interview            Legacy entity interview
-  audit                Report handover completeness
-  export [--single]    Generate handover Markdown`;
+Handover commands:
+  init                 Initialize TransferKit handover state
+  scan                 Analyze the repository and refresh suggestions
+  plan [action ...]    Create or review the Handover Plan and HANDOVER.md
+  sync                 Synchronize HANDOVER.md with Transfer state
+  status               Show handover progress and remaining work
+  evidence             Inspect repository evidence
+
+Workflow: init → scan → plan → edit HANDOVER.md → sync → status`;
+const legacyHandoverCommands = new Set([
+  "start",
+  "next",
+  "resume",
+  "revisit",
+  "add-topic",
+  "interview",
+  "audit",
+  "export",
+  "flow",
+]);
 const onboardUsage = `Plan and track onboarding
 
 Usage:

@@ -24,3 +24,5 @@ export const dependencies = [corePackageName] as const;
 
 export { discoverSemanticIntegrations } from "./semantic-integrations.js";
 export type { SemanticIntegration } from "./semantic-integrations.js";
+export { suggestTransferPlan, transferSectionTitles } from "./transfer-plan.js";
+export { understandProject } from "./project-understanding.js";

@@ -33,8 +33,8 @@ function identity(finding: Finding): {
     !/^(axios|fetch|httpservice|nestjs httpservice)$/iu.test(service)
   )
     return {
-      key: service.toLowerCase(),
-      provider: service,
+      key: (providerFromName(service) ?? service).toLowerCase(),
+      provider: providerFromName(service) ?? service,
       confidence: "OBSERVED",
     };
   const endpoint = value(finding, "endpoint");
@@ -61,14 +61,13 @@ function identity(finding: Finding): {
       provider: match[1],
       confidence: "INFERRED",
     };
-  const owner = value(finding, "owner");
-  const ownerMatch = owner?.match(
-    /^([A-Z][A-Za-z0-9]+?)(?:Api|Http|Client|Integration)Service$/u,
-  );
-  if (ownerMatch?.[1])
+  const inferred =
+    providerFromName(value(finding, "owner")) ??
+    providerFromPath(finding.evidence[0]?.file);
+  if (inferred)
     return {
-      key: ownerMatch[1].toLowerCase(),
-      provider: ownerMatch[1],
+      key: inferred.toLowerCase().replace(/\s+/gu, ""),
+      provider: inferred,
       confidence: "INFERRED",
     };
   return {
@@ -76,6 +75,56 @@ function identity(finding: Finding): {
     provider: "Unknown HTTP Integration",
     confidence: "UNKNOWN",
   };
+}
+
+export function providerFromName(name: string | undefined): string | undefined {
+  if (!name) return undefined;
+  if (name === "EmailProviderService") return "Email Provider";
+  const match =
+    name.match(
+      /^([A-Z][A-Za-z0-9]*?)(?:Api|Http|Client|Integration|Provider)?Service$/u,
+    ) ?? name.match(/^([A-Z][A-Za-z0-9]*?)(?:Client|Integration|Provider)$/u);
+  const candidate = match?.[1];
+  if (
+    !candidate ||
+    /^(Http|Https|Api|Axios|Fetch|External|Generic|Base|Core|App|Config|Email)$/u.test(
+      candidate,
+    )
+  )
+    return undefined;
+  return candidate;
+}
+
+function providerFromPath(file: string | undefined): string | undefined {
+  if (!file) return undefined;
+  const parts = file.split("/");
+  const stem = parts
+    .at(-1)
+    ?.replace(/\.[^.]+$/u, "")
+    .replace(/[-_.]/gu, " ");
+  const match = stem?.match(
+    /^(.+?) (?:api |http )?(?:client|integration|provider|service)$/iu,
+  );
+  if (!match) {
+    const directory = parts.at(-2);
+    if (!directory || !stem || directory.toLowerCase() !== stem.toLowerCase())
+      return undefined;
+    if (
+      /^(http|https|api|axios|fetch|external|generic|base|core|app|config)$/iu.test(
+        directory,
+      )
+    )
+      return undefined;
+    return directory.replace(/\b\w/gu, (letter) => letter.toUpperCase());
+  }
+  const words = match[1]!.trim();
+  if (
+    /^(http|https|api|axios|fetch|external|generic|base|core|app|config)$/iu.test(
+      words,
+    )
+  )
+    return undefined;
+  return words.replace(/\b\w/gu, (letter) => letter.toUpperCase());
 }
 
 export function discoverSemanticIntegrations(

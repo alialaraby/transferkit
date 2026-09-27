@@ -7,35 +7,19 @@ $ tk handover init
 Initialized TransferKit in /work/shipment-platform/.transferkit/project.yaml
 
 $ tk handover scan
-{
-  "findings": [
-    { "id": "framework.nestjs", "kind": "framework", "data": { "name": "NestJS" } },
-    { "id": "messaging.rabbitmq", "kind": "messaging", "data": { "name": "RabbitMQ" } }
-  ]
-}
+Scanned repository: 5 findings, 18 suggestions pending review. Use: tk handover plan
 
-$ tk handover evidence
-messaging.consumer: handleShipmentCreated
-  src/shipment.consumer.ts:4 — RabbitSubscribe decorator marks this method as a RabbitMQ consumer
+$ tk handover plan
+Handover Plan: 18 items, 18 pending review, 0 done.
+Generated HANDOVER.md.
 
-$ tk handover interview
-3 critical questions remain.
-Question 1 of 3
-How critical is shipment-workers? 1) critical  2) important  3) non-critical
-> 1
+# Review and edit HANDOVER.md in your IDE, then synchronize it.
+$ tk handover sync
+Synced HANDOVER.md
 
-$ tk handover audit
-Handover
-
-shipment-workers
-✓ Criticality
-✓ Failure behavior
-✓ Recovery / replay procedure
-– Operational owner (skipped)
-3 / 4 critical requirements complete
-
-$ tk handover export
-Generated /work/shipment-platform/.transferkit/handover
+$ tk handover status
+shipment-platform Handover
+0 / 18 complete
 
 $ tk onboard plan
 Onboarding Plan
@@ -51,4 +35,4 @@ Understand the System   1/1
 Trace It                0/1
 ```
 
-The generated handover package is a view of `.transferkit` state. Personal task progress is stored separately in `.transferkit.local/`.
+`HANDOVER.md` is the editable handover workspace. Its supported edits synchronize to `.transferkit/transfer.json`. Personal onboarding progress is stored separately in `.transferkit.local/`.

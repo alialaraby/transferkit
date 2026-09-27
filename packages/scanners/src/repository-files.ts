@@ -5,7 +5,11 @@ import type { Finding } from "@transferkit/core";
 
 export type RepositoryFileFinding = Finding<
   Record<string, string>,
-  "environment.template" | "containerization" | "ci.workflow" | "integration"
+  | "environment.template"
+  | "containerization"
+  | "ci.workflow"
+  | "integration"
+  | "database.migration"
 >;
 
 export async function discoverRepositoryFiles(
@@ -92,6 +96,27 @@ export async function discoverRepositoryFiles(
         { file, line: 1, description: "GitHub Actions workflow is present" },
       ],
     });
+  }
+  for (const folder of [
+    "migrations",
+    "src/migrations",
+    "db/migrations",
+    "database/migrations",
+  ]) {
+    for (const entry of await directoryFiles(
+      join(repositoryDirectory, folder),
+    )) {
+      if (!/\.(?:ts|js|sql)$/iu.test(entry)) continue;
+      const file = `${folder}/${entry}`;
+      findings.push({
+        id: `database.migration:${file}`,
+        kind: "database.migration",
+        data: { name: entry },
+        evidence: [
+          { file, line: 1, description: "Database migration file is present" },
+        ],
+      });
+    }
   }
   return findings;
 }

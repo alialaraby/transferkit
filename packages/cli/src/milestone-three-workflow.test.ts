@@ -8,7 +8,8 @@ import { describe, expect, it } from "vitest";
 import type { Finding } from "@transferkit/core";
 
 import { handoverStateFileName, readHandoverState } from "./handover-state.js";
-import { runCli, type CliEnvironment } from "./index.js";
+import type { CliEnvironment } from "./index.js";
+import { runLegacyCli as runCli } from "./legacy-cli.test-helper.js";
 import { planOnboarding } from "./plan-onboarding.js";
 
 const fixture = join(
