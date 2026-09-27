@@ -22,7 +22,19 @@ export function renderTransferHandover(transfer: Transfer): string {
     "",
     `Progress at generation: ${done} / ${active.length}`,
     "",
-    "Edit this Markdown normally. Mark boxes with [x], [X], [✓], or [✔]; add text under Notes. Edit section Status to not started, in progress, completed, blocked, skipped, or not applicable. Run `tk handover sync`, then `tk handover status` for live progress. Items marked Pending review need Current Owner review.",
+    "## How to use this handover",
+    "",
+    "Work through the sections in order. Each heading is one handover item; its checkbox shows whether that item is complete. **Progress** shows completed items in the section and is updated by sync.",
+    "",
+    "**Priority:** _[Critical]_ means essential for the transfer; _[Recommended]_ means useful to cover; _[Optional]_ means cover if relevant. Priority indicates importance, not completion.",
+    "",
+    "**Item type:** A heading without a type is a walkthrough. Action, Ownership, Open work, Risk, Verify, and Reference items show their type in the heading and have their own Completion fields. Fill those fields before checking the item.",
+    "",
+    "**During the meeting:** Check the required points under Cover as they are discussed. Add decisions, explanations, and follow-up details under Notes. Context names and collapsed Code references are repository clues to inspect, not answers to accept without review.",
+    "",
+    "**When finished with an item:** Mark its heading with [x], [X], [✓], or [✔]. A walkthrough also needs its required Cover points checked; other types need their Completion fields filled. Leave the `tk:` markers in place so edits can be synced.",
+    "",
+    "**Update progress:** Run `tk handover sync` after editing, then `tk handover status` for live progress and any incomplete items. Section Status can be not started, in progress, completed, blocked, skipped, or not applicable.",
     "",
   ];
   for (const section of transfer.plan.sections) {
@@ -32,21 +44,19 @@ export function renderTransferHandover(transfer: Transfer): string {
     if (!items.length) continue;
     const progress = sectionProgress(section, transfer.plan.items);
     lines.push(
+      "---",
+      "",
       `## ${safe(section.title)}`,
       `<!-- tk:section ${section.id} -->`,
       "",
-      `**Status:** ${progress.status.toLowerCase().replaceAll("_", " ")}`,
+      `**Status:** ${progress.status.toLowerCase().replaceAll("_", " ")}  `,
       `**Progress:** ${progress.done} / ${progress.total}`,
       "",
     );
     for (const item of items) {
       lines.push(
-        `### ${safe(item.title)}`,
+        `### [${item.status === "DONE" ? "x" : " "}] ${safe(item.title)} _[${displayPriority(item.priority)}${item.type === "WALKTHROUGH" ? "" : ` · ${displayType(item.type)}`}]_`,
         `<!-- tk:item ${item.id} -->`,
-        "",
-        `- [${item.status === "DONE" ? "x" : " "}] Complete item`,
-        "",
-        `> **${displayPriority(item.priority)}** · ${displayType(item.type)}${item.provenance.kind === "SUGGESTED" ? ` · ${item.provenance.decision === "PENDING" ? "Pending review" : "Accepted"}` : ""}`,
       );
       if (item.checklist.length)
         lines.push(
@@ -58,29 +68,39 @@ export function renderTransferHandover(transfer: Transfer): string {
               `- [${point.covered ? "x" : " "}] ${safe(point.text)} <!-- tk:point ${point.id} -->`,
           ),
         );
-      lines.push("", "#### Completion", "", ...completionFields(item));
-      lines.push("");
-      if (item.repositoryContext.length) {
-        lines.push("#### Repository Context", "");
-      }
-      lines.push("<!-- tk:context:start -->");
-      if (item.repositoryContext.length) {
+      if (item.type !== "WALKTHROUGH")
+        lines.push("", "#### Completion", "", ...completionFields(item));
+      const context = [
+        ...new Set(
+          item.repositoryContext
+            .map((reference) => contextName(reference.path))
+            .filter((name): name is string => Boolean(name)),
+        ),
+      ].slice(0, 4);
+      if (context.length)
         lines.push(
-          ...item.repositoryContext
-            .slice(0, 6)
-            .map(
-              (context) =>
-                `- ${safe(context.path)}${context.line ? `:${context.line}` : ""}`,
-            ),
+          "",
+          `**Context:** ${context.map((name) => `\`${safe(name)}\``).join(" · ")}`,
         );
-      }
-      lines.push("<!-- tk:context:end -->", "");
-      lines.push("#### Notes");
+      lines.push("", "**Notes**");
       lines.push(
         "<!-- tk:notes:start -->",
         item.notes ?? "",
         "<!-- tk:notes:end -->",
       );
+      if (item.repositoryContext.length) {
+        lines.push("", "<details>", "<summary>Code references</summary>", "");
+        lines.push("<!-- tk:context:start -->");
+        lines.push(
+          ...item.repositoryContext
+            .slice(0, 6)
+            .map(
+              (reference) =>
+                `- \`${safe(reference.path)}${reference.line ? `:${reference.line}` : ""}\``,
+            ),
+        );
+        lines.push("<!-- tk:context:end -->", "", "</details>");
+      } else lines.push("<!-- tk:context:start -->", "<!-- tk:context:end -->");
       const cases = item.attachments.filter(
         (attachment) => attachment.kind === "CASE",
       );
@@ -103,10 +123,25 @@ export function renderTransferHandover(transfer: Transfer): string {
             (attachment) => `- ${attachment.kind}: ${safe(attachment.value)}`,
           ),
         );
+      if (items.length > 1)
+        lines.push("", "</br>", '<hr style="width: 50%;margin: 0;">', "</br>");
       lines.push("");
     }
   }
   return `${lines.join("\n").trimEnd()}\n`;
+}
+
+function contextName(path: string): string | undefined {
+  const file = path.split("/").at(-1);
+  if (!file) return undefined;
+  const stem = file.replace(/\.(?:tsx?|jsx?|mjs|cjs)$/u, "");
+  if (stem === file) return undefined;
+  const name = stem
+    .split(/[.\-_]/u)
+    .filter(Boolean)
+    .map((part) => part[0]!.toUpperCase() + part.slice(1))
+    .join("");
+  return name || undefined;
 }
 
 function displayPriority(priority: HandoverItem["priority"]): string {
