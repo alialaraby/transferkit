@@ -1,343 +1,181 @@
-import { mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
+import { cp, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-
-import type { HandoverState } from "@transferkit/core";
 
 import { runCli } from "./cli.js";
 import {
   exportHandover,
   handoverExportDirectoryName,
-  messagingExportFileName,
   singleFileExportName,
 } from "./export-handover.js";
 import { readHandoverState, writeHandoverState } from "./handover-state.js";
 
-const entityId = "messaging.consumer:shipments";
+const fixture = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "../../../fixtures/realistic-nestjs",
+);
+async function project() {
+  const directory = await mkdtemp(join(tmpdir(), "transferkit-export-v2-"));
+  await cp(fixture, directory, { recursive: true });
+  return directory;
+}
+async function document(directory: string, name: string) {
+  return readFile(join(directory, handoverExportDirectoryName, name), "utf8");
+}
 
-describe("exportHandover", () => {
-  it("generates messaging.md from structured messaging state", async () => {
-    const directory = await projectWithState(state());
-
+describe("handover export v2", () => {
+  it("shows unanswered structure and unscoped notes without repeating integration evidence", async () => {
+    const directory = await project();
+    const state = await readHandoverState(directory);
+    state.guided = {
+      customTopics: [],
+      skipped: [],
+      notApplicable: [],
+      notes: [
+        { areaId: "architecture", value: "The payment boundary needs review" },
+      ],
+    };
+    await writeHandoverState(directory, state);
     await exportHandover(directory);
-
-    expect(await exportedMarkdown(directory)).toBe(`# Messaging
-
-## shipment-webhooks
-
-- **Technology:** rabbitmq
-- **Queue:** shipment-webhooks
-- **Exchange:** shipment
-- **Routing key:** shipment.updated
-- **Handler:** handleShipmentUpdate
-- **Criticality:** critical
-- **Failure behavior:** Dead-letters after retries
-- **Recovery / replay procedure:** Replay the DLQ
-- **Operational owner:** Platform
-`);
+    const architecture = await document(directory, "architecture.md");
+    expect(architecture).toContain(
+      "Maintainer context (not counted as coverage)",
+    );
+    expect(architecture).toContain(
+      "topic still to explain; see [remaining gaps]",
+    );
+    const integrations = await document(directory, "integrations.md");
+    expect(integrations).toContain("Identity: partner.example.test (observed)");
+    expect(integrations.match(/src\/partner\.client\.ts:12/gu)).toHaveLength(1);
+    expect(integrations).toContain("Call sites:");
+    expect(integrations).not.toContain("**Known failures**");
+  });
+  it("organizes observed context, maintainer knowledge, flows, and gaps for ownership transfer", async () => {
+    const directory = await project();
+    const state = await readHandoverState(directory);
+    state.knowledge.push(
+      {
+        entityId: "system-overview.purpose",
+        field: "content",
+        value: "Shipments move through fulfillment",
+      },
+      {
+        entityId: "ownership-contacts.owners",
+        field: "content",
+        value: "Platform team",
+      },
+    );
+    state.guided = {
+      customTopics: [
+        { id: "settlement", title: "Monthly settlement", priority: "critical" },
+      ],
+      skipped: [],
+      notApplicable: [],
+      flows: [
+        {
+          id: "manual:shipment-lifecycle",
+          name: "Shipment lifecycle",
+          origin: "manual",
+          status: "confirmed",
+          details: {
+            purpose: "Deliver shipments",
+            mainPath: "Receive, route, dispatch",
+            failurePaths: "Retry webhook",
+          },
+        },
+      ],
+    };
+    await writeHandoverState(directory, state);
+    await exportHandover(directory);
+    const files = await readdir(join(directory, handoverExportDirectoryName));
+    expect(files).toEqual(
+      expect.arrayContaining([
+        "README.md",
+        "system-overview.md",
+        "architecture.md",
+        "business-flows.md",
+        "async-and-jobs.md",
+        "deployment.md",
+        "ownership.md",
+        "remaining-gaps.md",
+      ]),
+    );
+    expect(await document(directory, "system-overview.md")).toContain(
+      "Shipments move through fulfillment",
+    );
+    expect(await document(directory, "business-flows.md")).toContain(
+      "Shipment lifecycle",
+    );
+    expect(await document(directory, "business-flows.md")).toContain(
+      "Retry webhook",
+    );
+    expect(await document(directory, "async-and-jobs.md")).toContain(
+      "src/shipment.jobs.ts",
+    );
+    expect(await document(directory, "deployment.md")).toContain("Dockerfile");
+    expect(await document(directory, "ownership.md")).toContain(
+      "Platform team",
+    );
+    expect(await document(directory, "remaining-gaps.md")).toContain(
+      "maintainer knowledge needed",
+    );
+    expect(
+      (await document(directory, "README.md")).match(/Missing critical/gu),
+    ).toBeNull();
   });
 
-  it("renders missing and skipped knowledge clearly", async () => {
-    const value = state();
-    value.knowledge = [
-      { entityId, field: "criticality", value: "critical" },
-      { entityId, field: "failureBehavior", value: "", status: "skipped" },
-    ];
-    const directory = await projectWithState(value);
-
-    await exportHandover(directory);
-    const markdown = await exportedMarkdown(directory);
-
-    expect(markdown).toContain("**Failure behavior:** _Missing (skipped)_");
-    expect(markdown).toContain("**Recovery / replay procedure:** _Missing_");
-    expect(markdown).toContain("**Operational owner:** _Missing_");
-  });
-
-  it("safely replaces generated output and is idempotent", async () => {
-    const directory = await projectWithState(state());
-    await exportHandover(directory);
-    const first = await exportedMarkdown(directory);
-
-    await exportHandover(directory);
-
-    expect(await exportedMarkdown(directory)).toBe(first);
-  });
-
-  it("does not mutate structured state", async () => {
-    const directory = await projectWithState(state());
+  it("supports deterministic single-file output and does not mutate shared state", async () => {
+    const directory = await project();
     const before = await readHandoverState(directory);
-
-    await exportHandover(directory);
-
-    expect(await readHandoverState(directory)).toEqual(before);
-  });
-
-  it("generates a concise multi-domain package", async () => {
-    const value = richState();
-    const directory = await projectWithState(value);
-
-    await exportHandover(directory);
-
-    expect(await exportedFiles(directory)).toEqual([
-      "architecture.md",
-      "data.md",
-      "deployment.md",
-      "integrations.md",
-      "messaging.md",
-      "operations.md",
-      "overview.md",
-      "ownership.md",
-      "risks.md",
-    ]);
-    expect(
-      await readFile(
-        join(directory, handoverExportDirectoryName, "data.md"),
-        "utf8",
-      ),
-    ).toContain("**Critical data / tables:** Orders and payments");
-    expect(
-      await readFile(
-        join(directory, handoverExportDirectoryName, "integrations.md"),
-        "utf8",
-      ),
-    ).toContain("**Business importance:** Payment processing");
-    expect(
-      await readFile(
-        join(directory, handoverExportDirectoryName, "risks.md"),
-        "utf8",
-      ),
-    ).toContain("rollback procedure");
-  });
-
-  it("generates only documents justified by available capabilities", async () => {
-    const directory = await projectWithState({
-      schemaVersion: 1,
-      entities: [
-        {
-          id: "configuration:runtime",
-          kind: "configuration",
-          name: "Runtime configuration",
-        },
-      ],
-      knowledge: [
-        {
-          entityId: "configuration:runtime",
-          field: "environmentDifferences",
-          value: "Production uses managed services",
-        },
-        {
-          entityId: "configuration:runtime",
-          field: "requiredConfiguration",
-          value: "Region must be configured",
-        },
-      ],
-    });
-
-    await exportHandover(directory);
-
-    expect(await exportedFiles(directory)).toEqual([
-      "operations.md",
-      "overview.md",
-      "ownership.md",
-    ]);
-  });
-
-  it("removes stale generated documents but preserves unrelated files", async () => {
-    const directory = await projectWithState(richState());
-    await exportHandover(directory);
-    await writeFile(
-      join(directory, handoverExportDirectoryName, "notes.md"),
-      "keep\n",
-      "utf8",
-    );
-    await writeHandoverState(directory, state());
-
-    await exportHandover(directory);
-
-    expect(await exportedFiles(directory)).toEqual([
-      "messaging.md",
-      "notes.md",
-      "overview.md",
-      "ownership.md",
-    ]);
-  });
-
-  it("redacts secret assignments from human knowledge", async () => {
-    const directory = await projectWithState({
-      schemaVersion: 1,
-      entities: [
-        {
-          id: "configuration:runtime",
-          kind: "configuration",
-          name: "Runtime configuration",
-        },
-      ],
-      knowledge: [
-        {
-          entityId: "configuration:runtime",
-          field: "environmentDifferences",
-          value: "Production differs from staging",
-        },
-        {
-          entityId: "configuration:runtime",
-          field: "requiredConfiguration",
-          value: "Set API_TOKEN=super-secret-value before startup",
-        },
-      ],
-    });
-
-    await exportHandover(directory);
-    const operations = await readFile(
-      join(directory, handoverExportDirectoryName, "operations.md"),
-      "utf8",
-    );
-
-    expect(operations).toContain("API_TOKEN=[REDACTED]");
-    expect(operations).not.toContain("super-secret-value");
-  });
-
-  it("supports deterministic single-file export through the CLI", async () => {
-    const directory = await projectWithState(richState());
     const stdout: string[] = [];
-
-    const exitCode = await runCli(["handover", "export", "--single"], {
-      cwd: directory,
-      stdout: (message) => stdout.push(message),
-      stderr: () => undefined,
-    });
+    expect(
+      await runCli(["handover", "export", "--single"], {
+        cwd: directory,
+        stdout: (message) => stdout.push(message),
+        stderr: () => undefined,
+      }),
+    ).toBe(0);
     const first = await readFile(join(directory, singleFileExportName), "utf8");
-    await exportHandover(directory, { single: true });
-
-    expect(exitCode).toBe(0);
+    expect(first).toContain("# Remaining Knowledge Gaps");
     expect(stdout[0]).toContain(singleFileExportName);
+    await exportHandover(directory, { single: true });
     expect(await readFile(join(directory, singleFileExportName), "utf8")).toBe(
       first,
     );
+    expect(await readHandoverState(directory)).toEqual(before);
   });
 
-  it("composes single-file output from the same ordered topic documents", async () => {
-    const directory = await projectWithState(richState());
+  it("removes obsolete generated pages but preserves unrelated notes", async () => {
+    const directory = await project();
     await exportHandover(directory);
-    await exportHandover(directory, { single: true });
-    const single = await readFile(
-      join(directory, singleFileExportName),
-      "utf8",
+    await writeFile(
+      join(directory, handoverExportDirectoryName, "messaging.md"),
+      "old generated page",
     );
+    await writeFile(
+      join(directory, handoverExportDirectoryName, "notes.md"),
+      "keep",
+    );
+    await exportHandover(directory);
+    const files = await readdir(join(directory, handoverExportDirectoryName));
+    expect(files).not.toContain("messaging.md");
+    expect(files).toContain("notes.md");
+  });
 
-    for (const fileName of await exportedFiles(directory)) {
-      const topic = await readFile(
-        join(directory, handoverExportDirectoryName, fileName),
-        "utf8",
-      );
-      expect(single).toContain(topic.trimEnd());
-    }
-    expect(single.indexOf("# System Overview")).toBeLessThan(
-      single.indexOf("# Architecture"),
-    );
-    expect(single.indexOf("# Architecture")).toBeLessThan(
-      single.indexOf("# Data"),
-    );
+  it("redacts secret-like human content", async () => {
+    const directory = await project();
+    const state = await readHandoverState(directory);
+    state.knowledge.push({
+      entityId: "system-overview.purpose",
+      field: "content",
+      value: "Use API_TOKEN=super-secret-value for access",
+    });
+    await writeHandoverState(directory, state);
+    await exportHandover(directory);
+    const output = await document(directory, "system-overview.md");
+    expect(output).toContain("API_TOKEN=[REDACTED]");
+    expect(output).not.toContain("super-secret-value");
   });
 });
-
-function richState(): HandoverState {
-  const messaging = state();
-  return {
-    schemaVersion: 1,
-    entities: [
-      ...messaging.entities,
-      {
-        id: "job:billing",
-        kind: "scheduled-job",
-        name: "BillingJob.run",
-        handler: "run",
-      },
-      {
-        id: "database:postgresql",
-        kind: "database",
-        name: "PostgreSQL",
-        technology: "PostgreSQL",
-      },
-      {
-        id: "integration:stripe",
-        kind: "integration",
-        name: "Stripe",
-        technology: "stripe",
-      },
-      {
-        id: "configuration:runtime",
-        kind: "configuration",
-        name: "Runtime configuration",
-      },
-      {
-        id: "containerization:docker",
-        kind: "containerization",
-        name: "Docker",
-        technology: "Docker",
-      },
-      {
-        id: "ci:workflow",
-        kind: "ci.workflow",
-        name: "CI",
-        technology: "GitHub Actions",
-      },
-    ],
-    knowledge: [
-      ...messaging.knowledge,
-      {
-        entityId: "database:postgresql",
-        field: "criticalData",
-        value: "Orders and payments",
-      },
-      {
-        entityId: "integration:stripe",
-        field: "businessImportance",
-        value: "Payment processing",
-      },
-    ],
-  };
-}
-
-function state(): HandoverState {
-  return {
-    schemaVersion: 1,
-    entities: [
-      {
-        id: entityId,
-        kind: "messaging.consumer",
-        name: "shipment-webhooks",
-        technology: "rabbitmq",
-        queue: "shipment-webhooks",
-        exchange: "shipment",
-        routingKey: "shipment.updated",
-        handler: "handleShipmentUpdate",
-      },
-    ],
-    knowledge: [
-      { entityId, field: "criticality", value: "critical" },
-      {
-        entityId,
-        field: "failureBehavior",
-        value: "Dead-letters after retries",
-      },
-      { entityId, field: "recoveryProcedure", value: "Replay the DLQ" },
-      { entityId, field: "operationalOwner", value: "Platform" },
-    ],
-  };
-}
-
-async function projectWithState(value: HandoverState): Promise<string> {
-  const directory = await mkdtemp(join(tmpdir(), "transferkit-export-"));
-  await writeHandoverState(directory, value);
-  return directory;
-}
-
-async function exportedMarkdown(directory: string): Promise<string> {
-  return readFile(join(directory, messagingExportFileName), "utf8");
-}
-
-async function exportedFiles(directory: string): Promise<string[]> {
-  return (await readdir(join(directory, handoverExportDirectoryName))).sort();
-}

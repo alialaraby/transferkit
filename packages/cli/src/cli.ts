@@ -3,16 +3,24 @@ import { packageName as renderersPackageName } from "@transferkit/renderers";
 import { packageName as scannersPackageName } from "@transferkit/scanners";
 import { packageName as standardsPackageName } from "@transferkit/standards";
 import {
-  renderHandoverAudit,
+  renderHandoverCoverageAudit,
   renderOnboardingPlan,
   renderOnboardingStatus,
 } from "@transferkit/renderers";
 import {
   buildOwnershipReadinessEvidence,
+  summarizeHandoverCoverage,
   isTaskStatus,
 } from "@transferkit/core";
 
-import { auditHandover } from "./audit-handover.js";
+import {
+  addGuidedTopic,
+  loadGuidedHandover,
+  nextGuidedHandover,
+  startGuidedHandover,
+  statusGuidedHandover,
+} from "./guided-handover.js";
+import { manageBusinessFlow } from "./business-flows.js";
 import { exportHandover } from "./export-handover.js";
 import { inspectEvidence } from "./evidence.js";
 import { initializeHandover } from "./initialize-handover.js";
@@ -48,6 +56,8 @@ export async function runCli(
     args[0] === "handover" &&
     args[1] === "export" &&
     args[2] === "--single";
+  const flowCommand =
+    args.length === 3 && args[0] === "handover" && args[1] === "flow";
   const taskUpdate =
     args.length === 4 && args[0] === "onboard" && args[1] === "task";
   if (args.length === 0 || (args.length === 1 && isHelpFlag(args[0]))) {
@@ -66,6 +76,7 @@ export async function runCli(
 
   if (
     !singleExport &&
+    !flowCommand &&
     !taskUpdate &&
     (args.length !== 2 || (args[0] !== "handover" && args[0] !== "onboard"))
   ) {
@@ -114,6 +125,24 @@ export async function runCli(
       return 2;
     }
 
+    if (flowCommand) {
+      const action = args[2];
+      if (
+        !action ||
+        !["list", "add", "confirm", "rename", "ignore", "document"].includes(
+          action,
+        )
+      ) {
+        environment.stderr(`Error: invalid flow action.\n\n${handoverUsage}`);
+        return 2;
+      }
+      await manageBusinessFlow(environment.cwd, action, {
+        write: environment.stdout,
+        read: environment.prompt,
+      });
+      return 0;
+    }
+
     if (args[1] === "init") {
       const result = await initializeHandover(environment.cwd);
       const message =
@@ -121,6 +150,38 @@ export async function runCli(
           ? `Initialized TransferKit in ${result.projectFile}`
           : `TransferKit is already initialized in ${result.projectFile}`;
       environment.stdout(message);
+      return 0;
+    }
+
+    if (args[1] === "start") {
+      await startGuidedHandover(environment.cwd, { write: environment.stdout });
+      return 0;
+    }
+
+    if (args[1] === "status") {
+      await statusGuidedHandover(environment.cwd, {
+        write: environment.stdout,
+      });
+      return 0;
+    }
+
+    if (args[1] === "next" || args[1] === "resume" || args[1] === "revisit") {
+      await nextGuidedHandover(
+        environment.cwd,
+        {
+          write: environment.stdout,
+          read: environment.prompt,
+        },
+        args[1] === "revisit",
+      );
+      return 0;
+    }
+
+    if (args[1] === "add-topic") {
+      await addGuidedTopic(environment.cwd, {
+        write: environment.stdout,
+        read: environment.prompt,
+      });
       return 0;
     }
 
@@ -153,7 +214,11 @@ export async function runCli(
 
     if (args[1] === "audit") {
       environment.stdout(
-        renderHandoverAudit(await auditHandover(environment.cwd)),
+        renderHandoverCoverageAudit(
+          summarizeHandoverCoverage(
+            (await loadGuidedHandover(environment.cwd)).plan,
+          ),
+        ),
       );
       return 0;
     }
@@ -192,9 +257,16 @@ Usage: tk handover <command>
 
 Commands:
   init                 Initialize .transferkit state
+  start                Show the guided handover plan and starting point
+  next                 Cover the next high-value handover topic
+  status               Show requirement coverage and remaining gaps
+  resume               Continue from shared handover state
+  revisit              Return to a skipped handover topic
+  add-topic            Add a project-specific handover topic
+  flow <action>        List, add, confirm, rename, ignore, or document a business flow
   scan                 Scan the repository and update discovered entities
   evidence             Show why repository findings were discovered
-  interview            Capture missing handover knowledge
+  interview            Legacy entity interview
   audit                Report handover completeness
   export [--single]    Generate handover Markdown`;
 const onboardUsage = `Plan and track onboarding

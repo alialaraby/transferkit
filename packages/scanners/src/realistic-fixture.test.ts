@@ -16,6 +16,7 @@ describe("realistic NestJS repository scan", () => {
 
     expect(kinds).toEqual(
       new Set([
+        "application.module",
         "technology",
         "language",
         "framework",

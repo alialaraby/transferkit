@@ -1,4 +1,6 @@
+import { businessFlowFields, type BusinessFlow } from "./business-flow.js";
 import type { KnowledgeEntry } from "./knowledge-gaps.js";
+import type { HandoverNote } from "./handover-plan.js";
 import {
   currentSchemaVersion,
   requireCurrentSchemaVersion,
@@ -25,10 +27,30 @@ export interface HandoverEntity {
   endpoint?: string;
 }
 
+export interface GuidedHandoverState {
+  customTopics: {
+    id: string;
+    title: string;
+    priority: "critical" | "recommended" | "optional";
+  }[];
+  skipped: string[];
+  notApplicable: string[];
+  confirmed?: string[];
+  flows?: BusinessFlow[];
+  notes?: HandoverNote[];
+  session?: {
+    status: "active" | "paused";
+    startedAt: string;
+    currentTopicId?: string;
+    completedTopicIds: string[];
+  };
+}
+
 export interface HandoverState {
   schemaVersion: 1;
   entities: HandoverEntity[];
   knowledge: KnowledgeEntry<string, string>[];
+  guided?: GuidedHandoverState;
 }
 
 export function createHandoverState(): HandoverState {
@@ -62,7 +84,8 @@ function isHandoverState(value: unknown): value is HandoverState {
     Array.isArray(value.entities) &&
     value.entities.every(isHandoverEntity) &&
     Array.isArray(value.knowledge) &&
-    value.knowledge.every(isKnowledgeEntry)
+    value.knowledge.every(isKnowledgeEntry) &&
+    (value.guided === undefined || isGuidedHandoverState(value.guided))
   );
 }
 
@@ -125,4 +148,81 @@ function isOptionalString(value: unknown): boolean {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isGuidedHandoverState(value: unknown): value is GuidedHandoverState {
+  return (
+    isRecord(value) &&
+    Array.isArray(value.customTopics) &&
+    value.customTopics.every(
+      (topic: unknown) =>
+        isRecord(topic) &&
+        typeof topic.id === "string" &&
+        typeof topic.title === "string" &&
+        (topic.priority === "critical" ||
+          topic.priority === "recommended" ||
+          topic.priority === "optional"),
+    ) &&
+    Array.isArray(value.skipped) &&
+    value.skipped.every((id: unknown) => typeof id === "string") &&
+    Array.isArray(value.notApplicable) &&
+    value.notApplicable.every((id: unknown) => typeof id === "string") &&
+    (value.confirmed === undefined ||
+      (Array.isArray(value.confirmed) &&
+        value.confirmed.every((id: unknown) => typeof id === "string"))) &&
+    (value.flows === undefined ||
+      (Array.isArray(value.flows) && value.flows.every(isBusinessFlow))) &&
+    (value.notes === undefined ||
+      (Array.isArray(value.notes) &&
+        value.notes.every(
+          (note: unknown) =>
+            isRecord(note) &&
+            typeof note.areaId === "string" &&
+            isOptionalString(note.subject) &&
+            typeof note.value === "string",
+        ))) &&
+    (value.session === undefined || isHandoverSession(value.session))
+  );
+}
+
+function isBusinessFlow(value: unknown): value is BusinessFlow {
+  if (
+    !isRecord(value) ||
+    typeof value.id !== "string" ||
+    typeof value.name !== "string"
+  )
+    return false;
+  if (value.origin !== "suggested" && value.origin !== "manual") return false;
+  if (
+    value.status !== "suggested" &&
+    value.status !== "confirmed" &&
+    value.status !== "irrelevant"
+  )
+    return false;
+  if (
+    !isOptionalString(value.sourceFindingId) ||
+    (value.startingPoints !== undefined &&
+      (!Array.isArray(value.startingPoints) ||
+        !value.startingPoints.every(
+          (point: unknown) => typeof point === "string",
+        ))) ||
+    !isRecord(value.details)
+  )
+    return false;
+  return Object.entries(value.details).every(
+    ([key, detail]) =>
+      businessFlowFields.includes(key as (typeof businessFlowFields)[number]) &&
+      typeof detail === "string",
+  );
+}
+
+function isHandoverSession(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    (value.status === "active" || value.status === "paused") &&
+    typeof value.startedAt === "string" &&
+    isOptionalString(value.currentTopicId) &&
+    Array.isArray(value.completedTopicIds) &&
+    value.completedTopicIds.every((id: unknown) => typeof id === "string")
+  );
 }

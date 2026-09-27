@@ -89,12 +89,15 @@ describe("Milestone 4 discovery", () => {
     ].filter((finding) => finding.kind === "integration");
     expect(findings.map((finding) => finding.data)).toEqual(
       expect.arrayContaining([
-        { client: "axios", endpoint: "https://example.test/shipments" },
-        { client: "fetch" },
-        {
+        expect.objectContaining({
+          client: "axios",
+          endpoint: "https://example.test/shipments",
+        }),
+        expect.objectContaining({ client: "fetch" }),
+        expect.objectContaining({
           client: "NestJS HttpService",
           endpoint: "https://hooks.example.test",
-        },
+        }),
         { client: "stripe", service: "Stripe" },
       ]),
     );

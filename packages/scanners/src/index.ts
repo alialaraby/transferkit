@@ -8,6 +8,10 @@ import {
   discoverRabbitMqConsumersInAst,
   type MessagingConsumerFinding,
 } from "./rabbitmq-consumers.js";
+import {
+  discoverHandoverContextInAst,
+  type HandoverContextFinding,
+} from "./handover-context.js";
 import { createTypeScriptAst } from "./typescript-ast.js";
 import {
   discoverScheduledJobsInAst,
@@ -26,6 +30,8 @@ export { discoverRabbitMqConsumers } from "./rabbitmq-consumers.js";
 export { buildRabbitMqMessagingModel } from "./messaging-model.js";
 export { discoverScheduledJobs, buildScheduledJobs } from "./scheduled-jobs.js";
 export { discoverSourceFeatures } from "./source-discovery.js";
+export { discoverHandoverContext } from "./handover-context.js";
+export type { HandoverContextFinding } from "./handover-context.js";
 export { discoverRepositoryFiles } from "./repository-files.js";
 export type {
   MessagingConsumerData,
@@ -43,7 +49,8 @@ export type RepositoryFinding =
   | MessagingConsumerFinding
   | ScheduledJobFinding
   | SourceDiscoveryFinding
-  | RepositoryFileFinding;
+  | RepositoryFileFinding
+  | HandoverContextFinding;
 
 export const packageName = "@transferkit/scanners";
 export const dependencies = [corePackageName] as const;
@@ -176,6 +183,7 @@ export async function scanRepository(
     ...discoverRabbitMqConsumersInAst(ast),
     ...discoverScheduledJobsInAst(ast),
     ...discoverSourceFeaturesInAst(ast),
+    ...discoverHandoverContextInAst(ast),
     ...fileFindings,
   ];
 }

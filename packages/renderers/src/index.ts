@@ -11,6 +11,9 @@ import { sanitizeHandoverValue } from "./handover-package.js";
 export const packageName = "@transferkit/renderers";
 export const dependencies = [corePackageName] as const;
 
+export { renderHandoverPackageV2 } from "./handover-package-v2.js";
+export { renderHandoverCoverageAudit } from "./handover-coverage-audit.js";
+
 export {
   renderHandoverPackage,
   renderSingleFileHandover,
