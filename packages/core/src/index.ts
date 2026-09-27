@@ -5,8 +5,11 @@ import {
 
 export const packageName = "@transferkit/core";
 
+export * from "./business-flow.js";
 export * from "./handover-state.js";
 export * from "./handover-audit.js";
+export * from "./handover-plan.js";
+export * from "./handover-coverage.js";
 export * from "./interview.js";
 export * from "./knowledge-gaps.js";
 export * from "./onboarding-plan.js";

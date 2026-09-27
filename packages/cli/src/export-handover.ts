@@ -1,23 +1,20 @@
-import { mkdir, rename, unlink, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import {
+  mkdir,
+  readFile,
+  readdir,
+  rename,
+  unlink,
+  writeFile,
+} from "node:fs/promises";
+import { basename, join } from "node:path";
 
 import {
-  auditHandoverKnowledge,
-  auditMessagingKnowledge,
-} from "@transferkit/core";
-import {
-  renderHandoverPackage,
-  renderMessagingMarkdown,
+  renderHandoverPackageV2,
   renderSingleFileHandover,
 } from "@transferkit/renderers";
-import {
-  handoverRequirements,
-  messagingConsumerRequirements,
-} from "@transferkit/standards";
 
-import { readHandoverState } from "./handover-state.js";
+import { loadGuidedHandover } from "./guided-handover.js";
 
-export const messagingExportFileName = ".transferkit/handover/messaging.md";
 export const handoverExportDirectoryName = ".transferkit/handover";
 export const singleFileExportName = "HANDOVER.md";
 
@@ -25,33 +22,13 @@ export interface ExportHandoverOptions {
   single?: boolean;
 }
 
-const generatedFileNames = [
-  "overview.md",
-  "architecture.md",
-  "data.md",
-  "messaging.md",
-  "integrations.md",
-  "operations.md",
-  "deployment.md",
-  "risks.md",
-  "ownership.md",
-] as const;
-
 export async function exportHandover(
   workingDirectory: string,
   options: ExportHandoverOptions = {},
 ): Promise<string> {
-  const state = await readHandoverState(workingDirectory);
-  const audit = auditHandoverKnowledge(state, handoverRequirements);
-  const messagingAudit = auditMessagingKnowledge(
-    state,
-    messagingConsumerRequirements,
-  );
-  const documents = renderHandoverPackage(
-    state,
-    audit,
-    renderMessagingMarkdown(state, messagingAudit),
-  );
+  const { plan, context } = await loadGuidedHandover(workingDirectory, false);
+  const projectName = await packageName(workingDirectory);
+  const documents = renderHandoverPackageV2(plan, projectName, context);
   if (options.single === true) {
     const file = join(workingDirectory, singleFileExportName);
     const temporaryFile = `${file}.tmp`;
@@ -61,27 +38,57 @@ export async function exportHandover(
   }
   const directory = join(workingDirectory, handoverExportDirectoryName);
   await mkdir(directory, { recursive: true });
-
+  const generated = new Set(documents.map(({ fileName }) => fileName));
   for (const document of documents) {
     const file = join(directory, document.fileName);
     const temporaryFile = `${file}.tmp`;
     await writeFile(temporaryFile, document.contents, "utf8");
     await rename(temporaryFile, file);
   }
-
-  const currentFiles = new Set(documents.map(({ fileName }) => fileName));
-  for (const fileName of generatedFileNames) {
-    if (!currentFiles.has(fileName))
-      await removeIfPresent(join(directory, fileName));
+  for (const fileName of await readdir(directory)) {
+    if (generated.has(fileName) || !previousGenerated.has(fileName)) continue;
+    await unlink(join(directory, fileName));
   }
   return directory;
 }
 
-async function removeIfPresent(file: string): Promise<void> {
+const previousGenerated = new Set([
+  "overview.md",
+  "architecture.md",
+  "data.md",
+  "messaging.md",
+  "integrations.md",
+  "operations.md",
+  "deployment.md",
+  "risks.md",
+  "ownership.md",
+  "README.md",
+  "system-overview.md",
+  "business-flows.md",
+  "async-and-jobs.md",
+  "security.md",
+  "failures-and-recovery.md",
+  "known-problems.md",
+  "work-in-progress.md",
+  "custom-topics.md",
+  "remaining-gaps.md",
+]);
+
+async function packageName(directory: string): Promise<string> {
   try {
-    await unlink(file);
-  } catch (error) {
-    if (!(error instanceof Error && "code" in error && error.code === "ENOENT"))
-      throw error;
+    const value: unknown = JSON.parse(
+      await readFile(join(directory, "package.json"), "utf8"),
+    );
+    if (
+      typeof value === "object" &&
+      value !== null &&
+      "name" in value &&
+      typeof value.name === "string" &&
+      value.name.trim()
+    )
+      return value.name;
+  } catch {
+    /* Repository scanning reports malformed package metadata separately. */
   }
+  return basename(directory);
 }

@@ -91,21 +91,27 @@ describe("Milestone 3 RabbitMQ workflow", () => {
 
     const audited = await command(directory, ["handover", "audit"]);
     expect(audited.exitCode).toBe(0);
-    expect(audited.stdout[0]).toContain("✓ Criticality");
-    expect(audited.stdout[0]).toContain("✓ Failure behavior");
-    expect(audited.stdout[0]).toContain("✓ Recovery / replay procedure");
-    expect(audited.stdout[0]).toContain("– Operational owner (skipped)");
-    expect(audited.stdout[0]).toContain("3 / 4 critical requirements complete");
+    expect(audited.stdout[0]).toContain("Handover audit");
+    expect(audited.stdout[0]).toContain("Async Processing 1/5");
+    expect(audited.stdout[0]).toContain(
+      "✗ missing human knowledge Messaging: Message flows and business purpose",
+    );
+    expect(audited.stdout[0]).toContain(
+      "– skipped Messaging: Operational owner",
+    );
 
     const exported = await command(directory, ["handover", "export"]);
     expect(exported.exitCode).toBe(0);
-    const markdownFile = join(directory, ".transferkit/handover/messaging.md");
-    const markdown = await readFile(markdownFile, "utf8");
-    expect(markdown).toContain("**Queue:** shipment-webhooks");
-    expect(markdown).toContain(
-      "**Failure behavior:** Dead-letters after retries; replay from the DLQ",
+    const markdownFile = join(
+      directory,
+      ".transferkit/handover/async-and-jobs.md",
     );
-    expect(markdown).toContain("**Operational owner:** _Missing (skipped)_");
+    const markdown = await readFile(markdownFile, "utf8");
+    expect(markdown).toContain("Consumers and message entry points");
+    expect(markdown).toContain(
+      "Dead-letters after retries; replay from the DLQ",
+    );
+    expect(markdown).toContain("src/shipment.consumer.ts");
 
     const onboarded = await command(directory, ["onboard", "plan"]);
     expect(onboarded.exitCode).toBe(0);

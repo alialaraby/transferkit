@@ -10,7 +10,17 @@ export {
   handoverRequirements,
   type HandoverKnowledgeField,
 } from "./handover-standard.js";
+export {
+  planAdaptiveHandover,
+  suggestBusinessFlows,
+  type AdaptiveHandoverInput,
+  type CustomHandoverTopic,
+} from "./adaptive-handover-plan.js";
+export { handoverStandardV2 } from "./handover-standard-v2.js";
 export { planHandoverInterviewQuestions } from "./handover-question-planner.js";
 
 export const packageName = "@transferkit/standards";
 export const dependencies = [corePackageName] as const;
+
+export { discoverSemanticIntegrations } from "./semantic-integrations.js";
+export type { SemanticIntegration } from "./semantic-integrations.js";

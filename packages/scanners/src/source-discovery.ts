@@ -141,7 +141,7 @@ function discoverInFile(
         call,
         "integration",
         `integration:${relativeId(ast, call)}`,
-        integration,
+        { ...integration, ...integrationContext(call, imports) },
         `Outbound ${integration.client} client call`,
       );
   }
@@ -199,6 +199,76 @@ function integrationData(
       return { client: "NestJS HttpService", ...endpoint(call) };
   }
   return undefined;
+}
+
+function integrationContext(
+  call: CallExpression,
+  imports: Map<string, string>,
+): Record<string, string> {
+  const owner = call.getFirstAncestorByKind(SyntaxKind.ClassDeclaration);
+  const method = call.getFirstAncestorByKind(SyntaxKind.MethodDeclaration);
+  const expression = call.getExpression();
+  const operation = Node.isPropertyAccessExpression(expression)
+    ? expression.getName().toUpperCase()
+    : "FETCH";
+  const argument = call.getArguments()[0];
+  let configKey: string | undefined;
+  let authConfigKey: string | undefined;
+  if (argument) {
+    const configCall = [
+      ...(Node.isCallExpression(argument) ? [argument] : []),
+      ...argument.getDescendantsOfKind(SyntaxKind.CallExpression),
+    ].find((item) => isConfigGet(item.getExpression(), imports));
+    configKey = configCall
+      ? staticString(configCall.getArguments()[0])
+      : undefined;
+    const env = argument
+      .getDescendantsOfKind(SyntaxKind.PropertyAccessExpression)
+      .find(
+        (item) =>
+          Node.isPropertyAccessExpression(item.getExpression()) &&
+          item.getExpression().getText() === "process.env",
+      );
+    configKey ??= env?.getName();
+  }
+  if (method) {
+    for (const declaration of method.getDescendantsOfKind(
+      SyntaxKind.VariableDeclaration,
+    )) {
+      const name = declaration.getName();
+      if (
+        !call
+          .getArguments()
+          .some((item) => new RegExp(`\\b${name}\\b`, "u").test(item.getText()))
+      )
+        continue;
+      const initializer = declaration.getInitializer();
+      const configCall =
+        initializer &&
+        [
+          ...(Node.isCallExpression(initializer) ? [initializer] : []),
+          ...initializer.getDescendantsOfKind(SyntaxKind.CallExpression),
+        ].find((item) => isConfigGet(item.getExpression(), imports));
+      const key = configCall
+        ? staticString(configCall.getArguments()[0])
+        : undefined;
+      if (!key) continue;
+      if (/(TOKEN|KEY|SECRET|AUTH|CREDENTIAL)/iu.test(key))
+        authConfigKey ??= key;
+      else configKey ??= key;
+    }
+  }
+  if (configKey && /(TOKEN|KEY|SECRET|AUTH|CREDENTIAL)/iu.test(configKey))
+    authConfigKey = configKey;
+  const ownerName = owner?.getName();
+  const methodName = method?.getName();
+  return {
+    ...(ownerName ? { owner: ownerName } : {}),
+    ...(methodName ? { method: methodName } : {}),
+    operation,
+    ...(configKey ? { configKey } : {}),
+    ...(authConfigKey ? { authConfigKey } : {}),
+  };
 }
 
 function endpoint(call: CallExpression): Record<string, string> {

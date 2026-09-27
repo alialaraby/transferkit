@@ -28,4 +28,55 @@ describe("handover state", () => {
       "unsupported newer schema version 2",
     );
   });
+
+  it("round-trips guided progress while accepting earlier state without it", () => {
+    const legacy = createHandoverState();
+    expect(parseHandoverState(serializeHandoverState(legacy))).toEqual(legacy);
+    const guided = {
+      ...legacy,
+      guided: {
+        customTopics: [
+          {
+            id: "settlement",
+            title: "Settlement",
+            priority: "critical" as const,
+          },
+        ],
+        skipped: ["operations.procedures"],
+        notApplicable: ["scheduled-jobs.jobs"],
+      },
+    };
+    expect(parseHandoverState(serializeHandoverState(guided))).toEqual(guided);
+  });
+
+  it("validates structured business-flow details", () => {
+    const state = {
+      ...createHandoverState(),
+      guided: {
+        customTopics: [],
+        skipped: [],
+        notApplicable: [],
+        flows: [
+          {
+            id: "manual:payment",
+            name: "Payment lifecycle",
+            origin: "manual" as const,
+            status: "confirmed" as const,
+            details: {
+              purpose: "Collect payment",
+              failurePaths: "Callback may fail",
+            },
+          },
+        ],
+      },
+    };
+    expect(parseHandoverState(serializeHandoverState(state))).toEqual(state);
+    const invalid = serializeHandoverState(state).replace(
+      '"purpose":',
+      '"invented":',
+    );
+    expect(() => parseHandoverState(invalid)).toThrow(
+      "Invalid TransferKit handover state",
+    );
+  });
 });
