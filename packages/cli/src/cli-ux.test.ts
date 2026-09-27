@@ -1,10 +1,11 @@
-import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { runCli, type CliEnvironment } from "./index.js";
 import { renderEvidence } from "./evidence.js";
+import { readTransferState } from "./transfer-state.js";
 
 describe("CLI experience", () => {
   it.each([
@@ -24,12 +25,72 @@ describe("CLI experience", () => {
     expect(result.stderr[0]).toContain("Error: unknown command");
   });
 
+  it("shows the v3 handover workflow without legacy commands", async () => {
+    const result = await command(process.cwd(), ["handover", "--help"]);
+    const help = result.stdout.join("\n");
+    for (const name of ["init", "scan", "plan", "sync", "status", "evidence"])
+      expect(help).toMatch(new RegExp(`^  ${name}\\b`, "mu"));
+    expect(help).toContain(
+      "init → scan → plan → edit HANDOVER.md → sync → status",
+    );
+    for (const name of [
+      "start",
+      "next",
+      "resume",
+      "revisit",
+      "add-topic",
+      "interview",
+      "audit",
+      "export",
+      "flow",
+    ])
+      expect(help).not.toMatch(new RegExp(`^  ${name}\\b`, "mu"));
+  });
+
+  it.each([
+    "start",
+    "next",
+    "resume",
+    "revisit",
+    "add-topic",
+    "interview",
+    "audit",
+    "export",
+    "flow",
+  ])(
+    "routes legacy %s to a migration message without touching state",
+    async (name) => {
+      const directory = await mkdtemp(join(tmpdir(), "transferkit-cli-"));
+      await mkdir(join(directory, ".transferkit"));
+      const legacy = '{"schemaVersion":1,"entities":[],"knowledge":[]}\n';
+      await writeFile(join(directory, ".transferkit/handover.json"), legacy);
+      const result = await command(directory, ["handover", name]);
+      expect(result.exitCode).toBe(2);
+      expect(result.stderr).toEqual([
+        "This command belongs to the legacy Handover workflow. Use: tk handover plan",
+      ]);
+      expect(
+        await readFile(join(directory, ".transferkit/handover.json"), "utf8"),
+      ).toBe(legacy);
+    },
+  );
+
+  it("reports the legacy migration message for export --single", async () => {
+    const result = await command(process.cwd(), [
+      "handover",
+      "export",
+      "--single",
+    ]);
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr[0]).toContain("Use: tk handover plan");
+  });
+
   it("reports corrupt state without a raw stack trace", async () => {
     const directory = await mkdtemp(join(tmpdir(), "transferkit-cli-"));
     await mkdir(join(directory, ".transferkit"));
     await writeFile(join(directory, ".transferkit/handover.json"), "{broken");
 
-    const result = await command(directory, ["handover", "audit"]);
+    const result = await command(directory, ["onboard", "plan"]);
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toEqual([
       "Error: Invalid TransferKit state in .transferkit/handover.json",
@@ -45,6 +106,40 @@ describe("CLI experience", () => {
     expect(result.exitCode).toBe(1);
     expect(result.stderr[0]).toMatch(/^Error: Malformed package\.json:/u);
     expect(result.stderr.join("\n")).not.toContain("RepositoryScanError");
+  });
+
+  it("uses Transfer state for scan, plan, and status while leaving old state untouched", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "transferkit-cli-"));
+    await mkdir(join(directory, ".transferkit"));
+    const legacy = '{"schemaVersion":1,"entities":[],"knowledge":[]}\n';
+    await writeFile(join(directory, ".transferkit/handover.json"), legacy);
+    await writeFile(join(directory, "package.json"), '{"name":"v3-example"}');
+    expect((await command(directory, ["handover", "init"])).exitCode).toBe(0);
+    const scan = await command(directory, ["handover", "scan"]);
+    expect(scan.exitCode).toBe(0);
+    expect(scan.stdout[0]).toContain("suggestions pending review");
+    expect(await readTransferState(directory)).toBeDefined();
+    expect((await command(directory, ["handover", "plan"])).exitCode).toBe(0);
+    expect((await command(directory, ["handover", "sync"])).exitCode).toBe(0);
+    const status = await command(directory, ["handover", "status"]);
+    expect(status.exitCode).toBe(0);
+    expect(status.stdout[0]).toContain("v3-example Handover");
+    expect(status.stdout[0]).toContain("complete");
+    expect(
+      await readFile(join(directory, ".transferkit/handover.json"), "utf8"),
+    ).toBe(legacy);
+  });
+
+  it("does not fall back to v2 status when only legacy state exists", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "transferkit-cli-"));
+    await mkdir(join(directory, ".transferkit"));
+    await writeFile(
+      join(directory, ".transferkit/handover.json"),
+      '{"schemaVersion":1,"entities":[],"knowledge":[]}',
+    );
+    const result = await command(directory, ["handover", "status"]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr[0]).toContain("Use: tk handover plan");
   });
 
   it("inspects finding evidence with source locations", async () => {

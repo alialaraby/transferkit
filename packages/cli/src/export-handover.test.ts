@@ -4,7 +4,6 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-import { runCli } from "./cli.js";
 import {
   exportHandover,
   handoverExportDirectoryName,
@@ -130,13 +129,9 @@ describe("handover export v2", () => {
     const directory = await project();
     const before = await readHandoverState(directory);
     const stdout: string[] = [];
-    expect(
-      await runCli(["handover", "export", "--single"], {
-        cwd: directory,
-        stdout: (message) => stdout.push(message),
-        stderr: () => undefined,
-      }),
-    ).toBe(0);
+    stdout.push(
+      `Generated ${await exportHandover(directory, { single: true })}`,
+    );
     const first = await readFile(join(directory, singleFileExportName), "utf8");
     expect(first).toContain("# Remaining Knowledge Gaps");
     expect(stdout[0]).toContain(singleFileExportName);

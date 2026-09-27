@@ -19,6 +19,7 @@ export type HandoverContextKind =
   | "application.controller"
   | "application.route"
   | "application.service"
+  | "application.dependency"
   | "security.guard"
   | "database.relationship"
   | "observability.signal";
@@ -158,6 +159,54 @@ function discoverFile(
         { name, dependencies: dependencies.join(", ") },
         `NestJS provider ${name} can participate in application flows`,
       );
+    }
+    if (controller || injectable) {
+      for (const parameter of owner
+        .getConstructors()
+        .flatMap((ctor) => ctor.getParameters())) {
+        const type = parameter.getTypeNode()?.getText() ?? "";
+        const direct = /^[A-Za-z_$][\w$]*$/u.test(type) ? type : undefined;
+        const repository = /^Repository<([A-Za-z_$][\w$]*)>$/u.exec(type);
+        const injectRepository = parameter
+          .getDecorators()
+          .some(
+            (item) =>
+              imports.get(item.getName()) ===
+                "@nestjs/typeorm:InjectRepository" &&
+              item.getCallExpression()?.getArguments()[0]?.getText() ===
+                repository?.[1],
+          );
+        const target =
+          repository &&
+          imports.get("Repository") === "typeorm:Repository" &&
+          injectRepository
+            ? repository[1]
+            : direct;
+        const origin = target ? imports.get(target) : undefined;
+        if (
+          !target ||
+          (repository && !injectRepository) ||
+          (!repository &&
+            !origin?.startsWith(".") &&
+            !file
+              .getClasses()
+              .some((candidate) => candidate.getName() === target))
+        )
+          continue;
+        add(
+          findings,
+          ast,
+          parameter,
+          "application.dependency",
+          `dependency:${name}:${target}:${location(ast, parameter)}`,
+          {
+            source: name,
+            target,
+            dependencyKind: repository ? "repository-entity" : "constructor",
+          },
+          `${name} declares a constructor dependency on ${target}`,
+        );
+      }
     }
     for (const target of [owner, ...owner.getMethods()]) {
       const local = nest("UseGuards");

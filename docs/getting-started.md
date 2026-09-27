@@ -23,15 +23,15 @@ From the target repository:
 ```bash
 tk handover init
 tk handover scan
-tk handover evidence
-tk handover interview
-tk handover audit
-tk handover export
+tk handover plan
+# Review and edit HANDOVER.md in your IDE
+tk handover sync
+tk handover status
 ```
 
-Initialization creates `.transferkit/project.yaml`. Scanning records the current system model in `.transferkit/handover.json`. Evidence output shows why each repository finding was produced. The interview saves each accepted answer as it proceeds and supports `skip` and `cancel`.
+Initialization creates `.transferkit/project.yaml`. Scanning refreshes suggested items in `.transferkit/transfer.json`. Planning creates the root-level `HANDOVER.md` workspace. Review suggestions with `tk handover plan`, edit the document, then sync supported edits back to Transfer state. `tk handover evidence` shows the repository evidence behind findings.
 
-Export writes a topic-based Markdown package under `.transferkit/handover/`; use `tk handover export --single` to generate `HANDOVER.md` instead.
+Existing `.transferkit/handover.json` files remain available to onboarding and are not converted or deleted by the v3 commands.
 
 ## Start onboarding
 
@@ -42,7 +42,7 @@ tk onboard task <task-id> in-progress
 tk onboard task <task-id> completed
 ```
 
-Onboarding progress is stored under `.transferkit.local/`, which TransferKit's repository ignores by default. The plan remains useful when human handover knowledge is incomplete by distinguishing repository-derived facts from unknown context.
+Onboarding progress is stored under `.transferkit.local/`, which TransferKit's repository ignores by default. Onboarding currently reads repository findings and any existing legacy handover knowledge; it does not consume v3 Transfer completion yet. Its plan remains useful when human handover knowledge is incomplete by distinguishing repository-derived facts from unknown context.
 
 ## Handling errors safely
 

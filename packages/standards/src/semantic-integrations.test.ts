@@ -1,68 +1,54 @@
 import { describe, expect, it } from "vitest";
 import type { Finding } from "@transferkit/core";
-import { discoverSemanticIntegrations } from "./semantic-integrations.js";
+import {
+  discoverSemanticIntegrations,
+  providerFromName,
+} from "./semantic-integrations.js";
 
-function call(id: string, data: Record<string, string>): Finding {
-  return {
-    id,
-    kind: "integration",
-    data,
-    evidence: [{ file: `src/${id}.ts`, line: 3, description: "HTTP call" }],
-  };
-}
-
-describe("semantic integrations", () => {
-  it("groups calls by observed provider and preserves operations, config, owners and evidence", () => {
-    const groups = discoverSemanticIntegrations([
-      call("one", {
-        client: "axios",
-        endpoint: "https://api.hyperpay.com/pay",
-        owner: "PaymentService",
-        operation: "POST",
-        configKey: "HYPERPAY_API_URL",
-        authConfigKey: "HYPERPAY_TOKEN",
-      }),
-      call("two", {
-        client: "fetch",
-        endpoint: "https://api.hyperpay.com/status",
-        owner: "PaymentService",
-        operation: "GET",
-      }),
+describe("semantic provider identity", () => {
+  it("recognizes provider owners without naming generic transports", () => {
+    expect(providerFromName("NafathService")).toBe("Nafath");
+    expect(providerFromName("SanadService")).toBe("Sanad");
+    expect(providerFromName("HyperPayClient")).toBe("HyperPay");
+    expect(providerFromName("EmailProviderService")).toBe("Email Provider");
+    expect(providerFromName("HttpService")).toBeUndefined();
+    const findings: Finding[] = [
       {
-        id: "module:payments",
-        kind: "application.module",
-        data: {
-          name: "PaymentsModule",
-          providers: "PaymentService",
-          controllers: "",
-        },
-        evidence: [{ file: "src/payments.module.ts", line: 1 }],
+        id: "one",
+        kind: "integration",
+        data: { owner: "NafathService" },
+        evidence: [{ file: "src/nafath/nafath.service.ts", line: 1 }],
       },
-    ]);
-    expect(groups).toHaveLength(1);
-    expect(groups[0]).toMatchObject({
-      provider: "api.hyperpay.com",
-      identity: "OBSERVED",
-      callSites: ["src/one.ts:3", "src/two.ts:3"],
-      configuration: ["HYPERPAY_API_URL", "HYPERPAY_TOKEN"],
-      relatedModules: ["PaymentService", "PaymentsModule"],
-      knownOperations: ["POST", "GET"],
-      authenticationEvidence: [
-        { file: "src/one.ts", line: 3, description: "HTTP call" },
-      ],
-    });
-  });
-
-  it("uses a named configuration key as an inference and keeps unidentified calls unknown", () => {
-    const groups = discoverSemanticIntegrations([
-      call("named", { client: "axios", configKey: "NAFATH_BASE_URL" }),
-      call("unknown", { client: "fetch" }),
-    ]);
+      {
+        id: "two",
+        kind: "integration",
+        data: { owner: "NafathService" },
+        evidence: [{ file: "src/nafath/nafath.service.ts", line: 8 }],
+      },
+      {
+        id: "generic",
+        kind: "integration",
+        data: { owner: "HttpService" },
+        evidence: [{ file: "src/http.ts", line: 3 }],
+      },
+      ...(
+        ["SanadService", "HyperPayClient", "EmailProviderService"] as const
+      ).map((owner) => ({
+        id: owner,
+        kind: "integration",
+        data: { owner },
+        evidence: [{ file: `src/${owner.toLowerCase()}.ts`, line: 1 }],
+      })),
+    ];
+    const integrations = discoverSemanticIntegrations(findings);
     expect(
-      groups.map(({ provider, identity }) => [provider, identity]),
-    ).toEqual([
-      ["NAFATH", "INFERRED"],
-      ["Unknown HTTP Integration", "UNKNOWN"],
-    ]);
+      integrations.find((item) => item.provider === "Nafath")?.callSites,
+    ).toHaveLength(2);
+    expect(
+      integrations.find((item) => item.identity === "UNKNOWN")?.findings,
+    ).toHaveLength(1);
+    expect(integrations.map((item) => item.provider)).toEqual(
+      expect.arrayContaining(["Nafath", "Sanad", "HyperPay", "Email Provider"]),
+    );
   });
 });

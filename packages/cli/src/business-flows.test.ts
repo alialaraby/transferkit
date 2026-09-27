@@ -3,7 +3,8 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { runCli, type CliEnvironment } from "./cli.js";
+import type { CliEnvironment } from "./cli.js";
+import { runLegacyCli as runCli } from "./legacy-cli.test-helper.js";
 import { readHandoverState } from "./handover-state.js";
 
 const fixture = join(
