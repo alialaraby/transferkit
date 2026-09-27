@@ -78,6 +78,12 @@ export function parseTransferMarkdown(
         `Item ${marker.id} needs a title heading immediately before its marker`,
       );
     const legacyHeading = heading[1]!.match(/^\[([ xX✓✔])\] (.+)$/u);
+    const oldHeadingMetadata = legacyHeading?.[2]?.match(
+      /^(.*) · \*\*(Critical|Recommended|Optional)\*\* · (Walkthrough|Action|Ownership|Open work|Risk|Verify|Reference)$/u,
+    );
+    const headingMetadata = legacyHeading?.[2]?.match(
+      /^(.*) _\[(Critical|Recommended|Optional)(?: · (Action|Ownership|Open work|Risk|Verify|Reference))?\]_$/u,
+    );
     const section = [...sections]
       .reverse()
       .find((candidate) => candidate.line < marker.line);
@@ -101,16 +107,29 @@ export function parseTransferMarkdown(
     );
     validateBlocks(body, marker.id);
     const display = compactMetadata(body, marker.id);
-    const type = display?.type ?? fieldBeforeHeading(body, "Type");
+    const type = headingMetadata
+      ? (headingMetadata[3] ?? "Walkthrough").toUpperCase().replaceAll(" ", "_")
+      : oldHeadingMetadata
+        ? oldHeadingMetadata[3]!.toUpperCase().replaceAll(" ", "_")
+        : (display?.type ?? fieldBeforeHeading(body, "Type"));
     if (type !== undefined && type !== original.type)
       throw new Error(`Item ${marker.id} type cannot be changed in Markdown`);
-    const priority = display?.priority ?? fieldBeforeHeading(body, "Priority");
+    const priority = headingMetadata
+      ? headingMetadata[2]!.toUpperCase()
+      : oldHeadingMetadata
+        ? oldHeadingMetadata[2]!.toUpperCase()
+        : (display?.priority ?? fieldBeforeHeading(body, "Priority"));
     if (
       priority !== undefined &&
       !["CRITICAL", "RECOMMENDED", "OPTIONAL"].includes(priority)
     )
       throw new Error(`Invalid priority for item ${marker.id}`);
-    const title = (legacyHeading?.[2] ?? heading[1]!).trim();
+    const title = (
+      headingMetadata?.[1] ??
+      oldHeadingMetadata?.[1] ??
+      legacyHeading?.[2] ??
+      heading[1]!
+    ).trim();
     if (!title) throw new Error(`Item ${marker.id} needs a title`);
     let item: HandoverItem = {
       ...original,
@@ -169,6 +188,8 @@ export function parseTransferMarkdown(
     const requested = legacyHeading
       ? isChecked(legacyHeading[1]!)
       : completionCheckbox(body, marker.id);
+    if (item.type === "WALKTHROUGH" && !body.includes("#### Completion"))
+      item = { ...item, completion: { confirmed: requested } };
     if (requested) {
       if (original.status !== "DONE") completionRequests++;
       const evaluation = evaluateItemCompletion(item);
@@ -349,7 +370,7 @@ export function refreshSectionProgress(
     const end = next < 0 ? lines.length : next;
     const display = progress.status.toLowerCase().replaceAll("_", " ");
     const fields = [
-      [/^\*\*Status:\*\*/u, `**Status:** ${display}`],
+      [/^\*\*Status:\*\*/u, `**Status:** ${display}  `],
       [
         /^\*\*Progress:\*\*/u,
         `**Progress:** ${progress.done} / ${progress.total}`,
@@ -423,7 +444,7 @@ function compactMetadata(
   if (lines.length !== 1)
     throw new Error(`Duplicate item metadata for ${itemId}`);
   const match = lines[0]!.match(
-    /^> \*\*(Critical|Recommended|Optional)\*\* · (Walkthrough|Action|Ownership|Open work|Risk|Verify|Reference)(?: · (Pending review|Accepted))?$/u,
+    /^> \*\*(Critical|Recommended|Optional)\*\* · (Walkthrough|Action|Ownership|Open work|Risk|Verify|Reference)(?: · (Suggested|Pending review|Accepted))?$/u,
   );
   if (!match) throw new Error(`Malformed item metadata for ${itemId}`);
   return {

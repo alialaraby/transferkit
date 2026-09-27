@@ -15,20 +15,41 @@ describe("tk handover plan", () => {
     const document = await readFile(join(directory, "HANDOVER.md"), "utf8");
     expect(summary).toContain("pending review");
     expect(document).toContain("<!-- tk:handover-v3 -->");
+    const guide = document
+      .split("## How to use this handover\n")[1]!
+      .split("\n---\n")[0]!;
+    expect(guide).toContain("_[Critical]_");
+    expect(guide).toContain("_[Recommended]_");
+    expect(guide).toContain("_[Optional]_");
+    expect(guide).toContain("required Cover points");
+    expect(guide).toContain("Completion fields");
+    expect(guide).toContain("tk handover sync");
+    expect(guide).toContain("tk handover status");
     expect(document).toContain(
       `<!-- tk:item ${transfer.plan.items[0]!.id} -->`,
     );
-    expect(document).toContain("<!-- tk:context:start -->");
-    expect(document).toContain("#### Notes");
+    expect(document).toContain("**Notes**");
     expect(document).not.toContain("#### Open Cases");
     expect(document).not.toContain("#### References");
     expect(document).not.toContain("#### Repository Context");
-    expect(document).toContain("- [ ] Complete item");
+    expect(document).toContain(
+      "### [ ] Explain the system architecture and boundaries _[Critical]_",
+    );
+    expect(document).toContain(
+      "### [ ] Review external service dependencies and failure handling _[Recommended]_",
+    );
+    expect(document).toContain(
+      "### [ ] Assign production and provider ownership to the Next Owner _[Critical · Ownership]_",
+    );
+    expect(document).toContain(
+      "### [ ] Next Owner demonstrates a safe deployment and recovery _[Critical · Verify]_",
+    );
     expect(document).toMatch(
-      /> \*\*(Critical|Recommended|Optional)\*\* · (Walkthrough|Action|Ownership)/u,
+      /### \[ \] .+ _\[(Critical|Recommended|Optional)(?: · (Action|Ownership))?\]_/u,
     );
     expect(document).not.toContain("Priority: CRITICAL");
-    expect(document).not.toContain("### [ ]");
+    expect(document).not.toContain("- [ ] Complete item");
+    expect(document).not.toContain('<hr style="width: 50%;margin: 0;">');
     await planTransfer(directory, "reject", [transfer.plan.items[0]!.id]);
     await planTransfer(directory);
     expect(
@@ -72,13 +93,28 @@ describe("tk handover plan", () => {
     await planTransfer(directory);
     const document = await readFile(join(directory, "HANDOVER.md"), "utf8");
     expect(document).toContain("## Business Domains");
-    expect(document).toContain("### Walk through the Payment domain");
+    expect(document).toContain("### [ ] Payment _[Critical]_");
     expect(document).toContain("PaymentController → PaymentService");
-    expect(document).toContain("### Walk through Payment callback handling");
-    expect(document).toContain("Walk through HyperPay integration");
+    expect(document).toContain("### [ ] Payment lifecycle");
+    expect(document).toContain("### [ ] HyperPay");
     expect(document).toContain("Detected schedule: 0 2 * * *");
     expect(document).toContain("<!-- tk:point domain:payment:handoff -->");
     expect(document).toContain("<!-- tk:context:start -->");
+    expect(document).toContain("<summary>Code references</summary>");
+    expect(document).toContain("**Context:**");
+    expect(document).toContain("`PaymentController`");
+    expect(document).toMatch(/- `src\/[^`]+`/u);
+    const separator = '</br>\n<hr style="width: 50%;margin: 0;">\n</br>';
+    const domainSection = document
+      .split("## Business Domains\n")[1]!
+      .split("\n---\n")[0]!;
+    expect(domainSection.match(/<!-- tk:item /gu)?.length).toBeGreaterThan(1);
+    expect(domainSection.split(separator).length - 1).toBe(
+      domainSection.match(/<!-- tk:item /gu)!.length,
+    );
+    expect(domainSection).toMatch(
+      /<\/details>\n\n<\/br>\n<hr style="width: 50%;margin: 0;">\n<\/br>/u,
+    );
     expect(document).not.toContain(
       "Explain the main business domains and responsibilities",
     );

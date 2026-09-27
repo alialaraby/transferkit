@@ -29,27 +29,85 @@ async function saveDocument(
 function itemTask(title: string, checked: false): RegExp;
 function itemTask(title: string, checked: true): string;
 function itemTask(title: string, checked: boolean): RegExp | string {
-  const heading = `### ${title.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}`;
+  const heading = title.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
   if (!checked)
-    return new RegExp(
-      `(${heading}\\n<!-- tk:item [^\\n]+ -->\\n\\n)- \\[ \\] Complete item`,
-      "u",
-    );
-  return "$1- [x] Complete item";
+    return new RegExp(`### \\[ \\] (${heading} _\\[[^\\n]+\\]_)`, "u");
+  return "### [x] $1";
 }
 
 describe("v3 Markdown sync", () => {
+  it("continues to import the previous standalone item checkbox", async () => {
+    const directory = await workspace();
+    const source = await document(directory);
+    const title = "Explain the system architecture and boundaries";
+    const edited = source
+      .replace(`### [ ] ${title} _[Critical]_`, `### ${title}`)
+      .replace(
+        new RegExp(`(### ${title}\\n<!-- tk:item [^\\n]+ -->)`, "u"),
+        "$1\n\n- [x] Complete item\n\n> **Critical** · Walkthrough · Suggested",
+      )
+      .replace(
+        "- [ ] Major components and data paths",
+        "- [x] Major components and data paths",
+      )
+      .replace(
+        "- [ ] Where to start a change",
+        "- [x] Where to start a change",
+      );
+    const result = parseTransferMarkdown(
+      edited,
+      (await readTransferState(directory))!,
+    );
+    expect(result.transfer.plan.items[0]).toMatchObject({
+      status: "DONE",
+      completion: { confirmed: true },
+    });
+  });
+
+  it("uses the walkthrough item checkbox as explicit confirmation", async () => {
+    const directory = await workspace();
+    const source = await document(directory);
+    expect(source).not.toContain("#### Completion\n\nConfirmed: no");
+    const edited = source
+      .replace(
+        itemTask("Explain the system architecture and boundaries", false),
+        itemTask("Explain the system architecture and boundaries", true),
+      )
+      .replace(
+        "- [ ] Major components and data paths",
+        "- [x] Major components and data paths",
+      )
+      .replace(
+        "- [ ] Where to start a change",
+        "- [x] Where to start a change",
+      );
+    const result = parseTransferMarkdown(
+      edited,
+      (await readTransferState(directory))!,
+    );
+    expect(result.transfer.plan.items[0]).toMatchObject({
+      status: "DONE",
+      completion: { confirmed: true },
+    });
+  });
+
   it("accepts every checkbox form and renders section progress and instructions", async () => {
     const directory = await workspace();
     const source = await document(directory);
-    expect(source).toContain("**Status:** not started\n**Progress:** 0 / 1");
-    expect(source).toContain("Edit this Markdown normally");
+    expect(source).toContain("**Status:** not started  \n**Progress:** 0 / 1");
+    expect(source).toContain("## How to use this handover");
+    expect(source).toMatch(
+      /\n---\n\n## System & Architecture\n<!-- tk:section [^\n]+ -->/u,
+    );
     expect(source).toContain("[x], [X], [✓], or [✔]");
     expect(source).toContain("tk handover sync");
     expect(source).toContain("tk handover status");
     for (const mark of ["x", "X", "✓", "✔"]) {
       const edited = source
-        .replace("- [ ] Complete item", `- [${mark}] Complete item`)
+        .replace(
+          "### [ ] Explain the system architecture and boundaries",
+          `### [${mark}] Explain the system architecture and boundaries`,
+        )
         .replace(
           "- [ ] Major components and data paths",
           `- [${mark}] Major components and data paths`,
@@ -110,7 +168,10 @@ describe("v3 Markdown sync", () => {
     ).toThrow("Invalid section Status");
     const completed = source
       .replace("**Status:** not started", "**Status:** completed")
-      .replace("- [ ] Complete item", "- [x] Complete item")
+      .replace(
+        itemTask("Explain the system architecture and boundaries", false),
+        itemTask("Explain the system architecture and boundaries", true),
+      )
       .replace(
         "- [ ] Major components and data paths",
         "- [x] Major components and data paths",
@@ -146,7 +207,7 @@ describe("v3 Markdown sync", () => {
       "Critical Business Flows: not applicable (0 / 0)",
     );
     expect(await document(directory)).toContain(
-      "**Status:** not applicable\n**Progress:** 0 / 0",
+      "**Status:** not applicable  \n**Progress:** 0 / 0",
     );
   });
   it("refreshes derived progress after sync and ignores a hand-edited Progress value", async () => {
@@ -165,18 +226,8 @@ describe("v3 Markdown sync", () => {
     const directory = await workspace();
     const original = await document(directory);
     const title = "Confirm transfer tasks and outstanding exceptions";
-    const modern = original.match(
-      new RegExp(
-        `### ${title}\\n<!-- tk:item [^\\n]+ -->\\n\\n- \\[ \\] Complete item\\n\\n> \\*\\*Critical\\*\\* · Action · Pending review`,
-        "u",
-      ),
-    )![0];
-    const legacy = modern
-      .replace(`### ${title}`, `### [x] ${title}`)
-      .replace(
-        "\n\n- [ ] Complete item\n\n> **Critical** · Action · Pending review",
-        "\n\nPriority: CRITICAL\nType: ACTION\nReview: PENDING",
-      );
+    const modern = `### [ ] ${title} _[Critical · Action]_`;
+    const legacy = `### [x] ${title} · **Critical** · Action`;
     const edited = original
       .replace(modern, legacy)
       .replace("Performed: no", "Performed: yes");
@@ -188,7 +239,7 @@ describe("v3 Markdown sync", () => {
       )?.status,
     ).toBe("DONE");
     expect(await document(directory)).toContain(
-      "**Status:** completed\n**Progress:** 1 / 1",
+      "**Status:** completed  \n**Progress:** 1 / 1",
     );
     expect(await document(directory)).toContain(
       "### [x] Confirm transfer tasks and outstanding exceptions",
@@ -211,13 +262,10 @@ describe("v3 Markdown sync", () => {
       .replace("Performed: no", "Performed: yes");
     edited = edited
       .replace(
-        "### Explain the system architecture and boundaries",
-        "### Explain the actual system boundaries",
+        "### [ ] Explain the system architecture and boundaries",
+        "### [ ] Explain the actual system boundaries",
       )
-      .replace(
-        "> **Critical** · Walkthrough",
-        "> **Recommended** · Walkthrough",
-      );
+      .replace("_[Critical]_", "_[Recommended]_");
     edited = edited.replace(
       "- [ ] Major components and data paths",
       "- [x] Major components and data paths",
@@ -250,10 +298,10 @@ describe("v3 Markdown sync", () => {
       ),
     ).toBe(true);
     expect(await document(directory)).toContain(
-      "**Status:** in progress\n**Progress:** 0 / 1",
+      "**Status:** in progress  \n**Progress:** 0 / 1",
     );
     expect(await document(directory)).toContain(
-      "**Status:** completed\n**Progress:** 1 / 1",
+      "**Status:** completed  \n**Progress:** 1 / 1",
     );
     expect((await document(directory)).endsWith(human)).toBe(true);
     expect(renderTransferStatus(state)).toContain("1 / 16 complete");

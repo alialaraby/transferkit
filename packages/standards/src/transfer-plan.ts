@@ -175,7 +175,11 @@ export function suggestTransferPlan(
     .filter(
       (proposal) =>
         (proposal.key !== "domains" || project.domains.length === 0) &&
-        (proposal.key !== "flows" || project.candidateFlows.length === 0) &&
+        (proposal.key !== "flows" ||
+          (project.candidateFlows.length === 0 &&
+            !findings.some(
+              (finding) => finding.kind === "application.route",
+            ))) &&
         (proposal.key !== "services" ||
           !project.operationalCapabilities.some(
             (capability) => capability.kind === "EXTERNAL_SERVICES",
@@ -231,7 +235,7 @@ export function suggestTransferPlan(
     .flatMap((domain) => domain.entities)
     .map((id) => componentName(project, id));
   if (detectedDatabases.length || detectedEntities.length) {
-    dataItem.title = `Walk through ${detectedDatabases.length ? detectedDatabases.join(" / ") : "project"} persistence and recovery`;
+    dataItem.title = `${detectedDatabases.length ? detectedDatabases.join(" / ") : "Project data"} & recovery`;
     dataItem.points = [
       ...(detectedDatabases.length
         ? [
@@ -278,8 +282,7 @@ export function suggestTransferPlan(
       finding.kind === "ci.workflow" || finding.kind === "containerization",
   );
   if (deploymentFindings.length) {
-    deploymentItem.title =
-      "Walk through detected deployment and rollback paths";
+    deploymentItem.title = "Deployment & rollback";
     deploymentItem.points = [
       {
         id: "deployment:files",
@@ -296,11 +299,11 @@ export function suggestTransferPlan(
     ];
     deploymentItem.findings = deploymentFindings;
   }
-  for (const domain of project.domains.slice(0, 8)) {
+  for (const domain of groupedDomains(project, findings).slice(0, 8)) {
     proposals.push({
       section: "Business Domains",
       key: domain.id,
-      title: `Walk through the ${domain.name} domain`,
+      title: domain.name,
       type: "WALKTHROUGH",
       priority:
         domain.controllers.length || domain.services.length
@@ -318,7 +321,7 @@ export function suggestTransferPlan(
       ),
     });
   }
-  for (const flow of project.candidateFlows.slice(0, 10)) {
+  for (const flow of groupedFlows(project).slice(0, 10)) {
     const scheduled = flow.jobIds.length > 0;
     const flowJobs = findings.filter(
       (finding) => scheduled && flow.sourceFindingIds.includes(finding.id),
@@ -330,8 +333,8 @@ export function suggestTransferPlan(
       key: flow.id,
       title:
         scheduled && flowJobs.length === 1
-          ? `Walk through ${humanizeJob(flowJobs[0]!)} scheduled job`
-          : `Walk through ${flow.title}`,
+          ? `${humanizeJob(flowJobs[0]!)} scheduled job`
+          : flow.title,
       type: "WALKTHROUGH",
       priority: "RECOMMENDED",
       points: flowPoints(flow, project, findings, integrations),
@@ -358,7 +361,7 @@ export function suggestTransferPlan(
     proposals.push({
       section: "External Services",
       key: `integration:${integration.id}`,
-      title: `Walk through ${provider} integration`,
+      title: provider,
       type: "WALKTHROUGH",
       priority: "RECOMMENDED",
       points: integrationPoints(integration, provider, domain),
@@ -401,7 +404,7 @@ export function suggestTransferPlan(
     });
   const jobs = findings.filter((finding) => finding.kind === "scheduled-job");
   const representedJobs = new Set(
-    project.candidateFlows
+    groupedFlows(project)
       .filter((flow) => flow.jobIds.length > 0)
       .flatMap((flow) => flow.sourceFindingIds),
   );
@@ -566,6 +569,204 @@ export function suggestTransferPlan(
   return { id: randomUUID(), sections, items };
 }
 
+function groupedDomains(
+  project: ProjectModel,
+  findings: readonly Finding[],
+): ProjectDomain[] {
+  const domains = project.domains.map((domain) => ({ ...domain }));
+  const owner = new Map<string, ProjectDomain>();
+  const routesFor = (domain: ProjectDomain): number =>
+    findings.filter(
+      (finding) =>
+        finding.kind === "application.route" &&
+        domain.controllers.some(
+          (id) =>
+            componentName(project, id) === stringData(finding, "controller"),
+        ),
+    ).length;
+  const strong = (domain: ProjectDomain): boolean =>
+    domain.entities.length > 0 || routesFor(domain) > 1;
+  for (const domain of domains.filter((candidate) => !strong(candidate))) {
+    const linked = domains.filter(
+      (candidate) =>
+        candidate.id !== domain.id &&
+        strong(candidate) &&
+        project.relationships.some((relationship) => {
+          const source = [
+            ...domain.modules,
+            ...domain.controllers,
+            ...domain.services,
+          ];
+          const target = [
+            ...candidate.modules,
+            ...candidate.controllers,
+            ...candidate.services,
+          ];
+          return (
+            (source.includes(relationship.from) &&
+              target.includes(relationship.to)) ||
+            (source.includes(relationship.to) &&
+              target.includes(relationship.from))
+          );
+        }),
+    );
+    if (linked.length === 1) owner.set(domain.id, linked[0]!);
+  }
+  const members = (primary: ProjectDomain): ProjectDomain[] => [
+    primary,
+    ...domains.filter((domain) => owner.get(domain.id)?.id === primary.id),
+  ];
+  const union = (
+    parts: ProjectDomain[],
+    field: keyof ProjectDomain,
+  ): string[] => [...new Set(parts.flatMap((part) => part[field] as string[]))];
+  return domains
+    .filter((domain) => !owner.has(domain.id))
+    .map((domain) => {
+      const parts = members(domain);
+      return {
+        ...domain,
+        modules: union(parts, "modules"),
+        controllers: union(parts, "controllers"),
+        services: union(parts, "services"),
+        entities: union(parts, "entities"),
+        integrations: union(parts, "integrations"),
+        jobs: union(parts, "jobs"),
+        evidence: [
+          ...new Map(
+            parts
+              .flatMap((part) => part.evidence)
+              .map((item) => [`${item.file}:${item.line ?? ""}`, item]),
+          ).values(),
+        ],
+      };
+    });
+}
+
+function groupedFlows(project: ProjectModel): CandidateFlow[] {
+  const groups = new Map<string, CandidateFlow[]>();
+  for (const flow of project.candidateFlows) {
+    const primary =
+      project.domains.find((domain) =>
+        domain.controllers.includes(flow.componentIds[0] ?? ""),
+      )?.id ??
+      flow.domainIds[0] ??
+      flow.id;
+    const category = flow.jobIds.length
+      ? `job:${flow.id}`
+      : /recover|retry|reconcil/iu.test(
+            `${flow.title} ${flow.entryPoints.join(" ")}`,
+          )
+        ? "recovery"
+        : /signup|sign.?in|otp|verif|register|onboard|auth|session|token/iu.test(
+              `${flow.title} ${flow.entryPoints.join(" ")}`,
+            )
+          ? "identity"
+          : /checkout|pay|callback|webhook/iu.test(
+                `${flow.title} ${flow.entryPoints.join(" ")}`,
+              )
+            ? "payment"
+            : /payout|settle|receivable/iu.test(
+                  `${flow.title} ${flow.entryPoints.join(" ")}`,
+                )
+              ? "settlement"
+              : /remind|overdue|notify|notification/iu.test(
+                    `${flow.title} ${flow.entryPoints.join(" ")}`,
+                  )
+                ? "reminders"
+                : "lifecycle";
+    const key = `${primary}:${category}`;
+    const connected = (groups.get(key) ?? []).find(
+      (group) =>
+        group.componentIds.some(
+          (id) =>
+            project.components.find((component) => component.id === id)
+              ?.kind === "CONTROLLER" && flow.componentIds.includes(id),
+        ) ||
+        group.componentIds.some(
+          (id) =>
+            project.components.find((component) => component.id === id)
+              ?.kind === "SERVICE" && flow.componentIds.includes(id),
+        ),
+    );
+    if (connected) {
+      const index = groups.get(key)!.indexOf(connected);
+      groups.get(key)![index] = mergeFlows([connected, flow], key, project);
+    } else groups.set(key, [...(groups.get(key) ?? []), flow]);
+  }
+  return [...groups.values()].flat().map((flow) => {
+    if (flow.domainIds.length < 2 || flow.jobIds.length) return flow;
+    const names = flow.domainIds
+      .map((id) => project.domains.find((domain) => domain.id === id)?.name)
+      .filter((name): name is string => Boolean(name));
+    return {
+      ...flow,
+      title: names.length === 2 ? names.join(" & ") : flow.title,
+    };
+  });
+}
+
+function mergeFlows(
+  flows: CandidateFlow[],
+  key: string,
+  project: ProjectModel,
+): CandidateFlow {
+  if (flows.length === 1) return flows[0]!;
+  const domainNames = [
+    ...new Set(
+      flows.flatMap((flow) =>
+        flow.domainIds.map(
+          (id) => project.domains.find((domain) => domain.id === id)?.name,
+        ),
+      ),
+    ),
+  ].filter((name): name is string => Boolean(name));
+  const category =
+    key.split(":").at(-1) === "recovery"
+      ? "recovery and reconciliation"
+      : key.split(":").at(-1) === "identity"
+        ? "onboarding and identity"
+        : key.split(":").at(-1) === "payment"
+          ? "payment"
+          : key.split(":").at(-1) === "settlement"
+            ? "settlement"
+            : key.split(":").at(-1) === "reminders"
+              ? "reminders and overdue processing"
+              : "lifecycle";
+  const first = flows[0]!;
+  const subject =
+    domainNames.length <= 2
+      ? domainNames.join(" & ") || first.title.split(" ")[0]!
+      : first.title.split(" ")[0]!;
+  const unique = (values: string[]): string[] => [...new Set(values)];
+  return {
+    ...first,
+    id: `flow:${key}:${unique(flows.flatMap((flow) => flow.sourceFindingIds)).sort()[0]}`,
+    title: `${subject} ${category === "payment" && /pay/iu.test(subject) ? "lifecycle" : category}`,
+    domainIds: unique(flows.flatMap((flow) => flow.domainIds)),
+    componentIds: unique(flows.flatMap((flow) => flow.componentIds)),
+    steps: [
+      ...new Map(
+        flows
+          .flatMap((flow) => flow.steps)
+          .map((step) => [step.componentId, step]),
+      ).values(),
+    ],
+    entryPoints: unique(flows.flatMap((flow) => flow.entryPoints)),
+    integrationIds: unique(flows.flatMap((flow) => flow.integrationIds)),
+    entityIds: unique(flows.flatMap((flow) => flow.entityIds)),
+    jobIds: unique(flows.flatMap((flow) => flow.jobIds)),
+    sourceFindingIds: unique(flows.flatMap((flow) => flow.sourceFindingIds)),
+    evidence: [
+      ...new Map(
+        flows
+          .flatMap((flow) => flow.evidence)
+          .map((item) => [`${item.file}:${item.line ?? ""}`, item]),
+      ).values(),
+    ],
+  };
+}
+
 function projectArchitecturePoints(
   project: ProjectModel,
   findings: readonly Finding[],
@@ -680,6 +881,14 @@ function domainPoints(
   const add = (key: string, text: string): void => {
     if (text) points.push({ id: `${domain.id}:${key}`, text });
   };
+  if (domain.modules.length > 1)
+    add(
+      "modules",
+      `Related modules: ${domain.modules
+        .slice(1, 5)
+        .map((id) => componentName(project, id))
+        .join(", ")}`,
+    );
   const controllers = domain.controllers
     .map((id) => project.components.find((component) => component.id === id))
     .filter((item) => item !== undefined);
@@ -697,7 +906,7 @@ function domainPoints(
   if (routes.length)
     add(
       "entry",
-      `Explain entry points and caller expectations: ${routes
+      `Entry points: ${routes
         .slice(0, 3)
         .map((route) =>
           `${stringData(route, "verb") ?? "ROUTE"} ${stringData(route, "path") ?? ""}`.trim(),
@@ -717,14 +926,11 @@ function domainPoints(
         `${componentName(project, relationship.from)} → ${componentName(project, relationship.to)}`,
     );
   if (handoffs.length)
-    add(
-      "handoff",
-      `Explain controller-to-service responsibilities: ${handoffs.join(", ")}`,
-    );
+    add("handoff", `Service handoffs: ${handoffs.join(", ")}`);
   else if (domain.services.length)
     add(
       "services",
-      `Explain service responsibilities: ${domain.services
+      `Services: ${domain.services
         .slice(0, 2)
         .map((id) => componentName(project, id))
         .join(", ")}`,
@@ -732,7 +938,7 @@ function domainPoints(
   if (domain.entities.length)
     add(
       "entities",
-      `Explain persistence and data ownership: ${domain.entities
+      `Data ownership: ${domain.entities
         .slice(0, 3)
         .map((id) => componentName(project, id))
         .join(", ")}`,
@@ -746,10 +952,7 @@ function domainPoints(
     .filter((item): item is SemanticIntegration => item !== undefined)
     .map(integrationLabel);
   if (providers.length)
-    add(
-      "integrations",
-      `External interactions to explain: ${providers.join(", ")}`,
-    );
+    add("integrations", `External services: ${providers.join(", ")}`);
   const jobs = findings.filter((finding) => domain.jobs.includes(finding.id));
   if (jobs.length)
     add(
@@ -773,22 +976,16 @@ function flowPoints(
     if (text) points.push({ id: `${flow.id}:${key}`, text });
   };
   if (flow.entryPoints.length && !flow.jobIds.length)
-    add(
-      "entry",
-      `Explain entry points and caller expectations: ${flow.entryPoints.slice(0, 3).join(", ")}`,
-    );
+    add("entry", `Entry points: ${flow.entryPoints.slice(0, 5).join(", ")}`);
   if (
     !flow.jobIds.length &&
     flow.entryPoints.some((entry) => /recover|retry|reconcile/iu.test(entry))
   )
-    add(
-      "recovery",
-      "Explain the detected recovery entry point, safe rerun conditions, and failure handling",
-    );
+    add("recovery", "Recovery entry point, safe reruns, and failure handling");
   if (flow.entryPoints.some((entry) => /callback|webhook/iu.test(entry)))
     add(
       "callback",
-      "Explain callback validation, duplicate delivery, and failed processing behavior",
+      "Callback validation, duplicate delivery, and failed processing",
     );
   const services = flow.componentIds
     .map((id) => project.components.find((component) => component.id === id))
@@ -799,14 +996,11 @@ function flowPoints(
     .slice(0, 3)
     .map((component) => component!.name);
   if (services.length)
-    add(
-      "services",
-      `Explain service handoffs and responsibilities through ${services.join(", ")}`,
-    );
+    add("services", `Service handoffs: ${services.join(", ")}`);
   if (flow.entityIds.length)
     add(
       "entities",
-      `Explain persistence and data changes affecting ${flow.entityIds
+      `Data changes: ${flow.entityIds
         .slice(0, 3)
         .map((id) => componentName(project, id))
         .join(", ")}`,
@@ -822,7 +1016,7 @@ function flowPoints(
   if (providers.length)
     add(
       "integrations",
-      `Explain provider interactions and failure handling through ${providers.join(", ")}`,
+      `Provider interactions and failures: ${providers.join(", ")}`,
     );
   if (flow.jobIds.length)
     points.push(
