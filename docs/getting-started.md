@@ -2,16 +2,22 @@
 
 TransferKit runs inside the repository whose ownership is being transferred. It stores shared handover state separately from personal onboarding progress.
 
-## Install from source
+## Install
 
-Until the npm release is published:
+Node.js 18 or newer is required. Install the published CLI with:
+
+```bash
+npm install --global transferkit
+```
+
+To install from source instead:
 
 ```bash
 git clone https://github.com/alialaraby/transferkit.git
 cd transferkit
 npm ci
 npm run build
-npm link --workspace @transferkit/cli
+npm link --workspace transferkit
 ```
 
 Verify the command with `tk --help`, `tk handover --help`, and `tk onboard --help`.

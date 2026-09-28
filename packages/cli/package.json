@@ -1,6 +1,6 @@
 {
   "name": "transferkit",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Local-first CLI for engineering handover and onboarding workflows",
   "license": "MIT",
   "author": "Ali Alaraby",
@@ -19,13 +19,14 @@
   "bugs": "https://github.com/alialaraby/transferkit/issues",
   "homepage": "https://github.com/alialaraby/transferkit#readme",
   "engines": {
-    "node": ">=24"
+    "node": ">=18"
   },
   "publishConfig": {
     "access": "public"
   },
   "files": [
-    "dist/index.js"
+    "dist/index.js",
+    "CHANGELOG.md"
   ],
   "type": "module",
   "bin": {
@@ -33,11 +34,11 @@
   },
   "scripts": {
     "build": "tsc -b && npm run bundle",
-    "bundle": "node -e \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true })\" && esbuild src/index.ts --bundle --platform=node --format=esm --target=node24 --external:ts-morph --outfile=dist/index.js && node -e \"import { chmodSync } from 'node:fs'; chmodSync('dist/index.js', 0o755)\"",
+    "bundle": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && esbuild src/index.ts --bundle --platform=node --format=esm --target=node18 --external:ts-morph --outfile=dist/index.js && node -e \"require('node:fs').chmodSync('dist/index.js', 0o755)\"",
     "prepack": "npm run build",
     "typecheck": "tsc -b --noEmit"
   },
   "dependencies": {
-    "ts-morph": "^28.0.0"
+    "ts-morph": "^25.0.1"
   }
 }
