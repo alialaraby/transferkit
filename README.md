@@ -5,7 +5,7 @@
 [![npm version](https://img.shields.io/npm/v/transferkit.svg)](https://www.npmjs.com/package/transferkit)
 [![CI](https://github.com/alialaraby/transferkit/actions/workflows/ci.yml/badge.svg)](https://github.com/alialaraby/transferkit/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Node.js 24+](https://img.shields.io/badge/node-%3E%3D24-339933?logo=node.js&logoColor=white)](package.json)
+[![Node.js 18+](https://img.shields.io/badge/node-%3E%3D18-339933?logo=node.js&logoColor=white)](package.json)
 
 TransferKit is a local-first CLI for structured software ownership transfer. It discovers supported system components, records evidence, and turns structured project state into practical handover and onboarding workflows.
 
@@ -22,7 +22,7 @@ Its current ecosystem support focuses on Node.js and TypeScript backends, with d
 npm install --global transferkit
 ```
 
-Node.js 24 or newer is required. After installation, run `tk --help` to see the available commands.
+Node.js 18 or newer is required. After installation, run `tk --help` to see the available commands.
 
 ## Quick start
 
@@ -50,6 +50,10 @@ tk onboard task <task-id> completed
 ```
 
 See the [workflow example](examples/workflow.md) for representative output and [getting started](docs/getting-started.md) for a fuller walkthrough.
+
+## What's new in 0.2.0
+
+Handover v3 adds a shared ownership-transfer plan, a meeting-ready `HANDOVER.md` checklist, deterministic suggestions from repository evidence, and Markdown sync. See the [release notes](packages/cli/CHANGELOG.md) for details and compatibility notes.
 
 ## Local-first and private by default
 

@@ -22,7 +22,7 @@ import { syncTransfer } from "./sync-transfer.js";
 import { readTransferState } from "./transfer-state.js";
 import { renderTransferStatus } from "./transfer-status.js";
 
-export const packageName = "@transferkit/cli";
+export const packageName = "transferkit";
 export const dependencies = [
   corePackageName,
   scannersPackageName,

@@ -4,7 +4,7 @@ import { createPipedPrompt, dependencies, packageName } from "./index.js";
 
 describe("workspace packages", () => {
   it("resolves the intended CLI dependencies", () => {
-    expect(packageName).toBe("@transferkit/cli");
+    expect(packageName).toBe("transferkit");
     expect(dependencies).toEqual([
       "@transferkit/core",
       "@transferkit/scanners",
