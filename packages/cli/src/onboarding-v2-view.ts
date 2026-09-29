@@ -92,10 +92,13 @@ function personalQuestions(source: string): string[] {
   return source.split(/^## /mu).flatMap((part) => {
     if (!part.includes("<!-- tk:onboard:exercise ")) return [];
     const lines = part.split(/\r?\n/u);
-    const start = lines.findIndex((line) => line.trim() === "**Questions**");
+    const start = lines.findIndex((line) =>
+      ["**Questions**", "### Questions"].includes(line.trim()),
+    );
     if (start < 0) return [];
     const end = lines.findIndex(
-      (line, index) => index > start && line.trim() === "**Evidence**",
+      (line, index) =>
+        index > start && ["**Evidence**", "### Evidence"].includes(line.trim()),
     );
     return lines
       .slice(start + 1, end < 0 ? lines.length : end)

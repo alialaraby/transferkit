@@ -19,8 +19,9 @@ export function renderPersonalOnboarding(
   const lines = [
     "# Personal onboarding workspace",
     "",
-    "This is your local workspace. The linked shared guide holds repository evidence; record your own observations here.",
-    "Checkboxes are self-reported, not verified competence. Run `tk onboard sync` after editing them; `tk onboard status` reads the synchronized JSON state.",
+    "Use the [shared guide](../ONBOARDING.md) to work through these exercises. Record what you saw, what you still need to ask, and where you found it.",
+    "",
+    "Check an objective when you consider it done, then run `tk onboard sync`. Progress is self-reported.",
     "",
   ];
   for (const [index, exercise] of exercises.entries()) {
@@ -29,20 +30,20 @@ export function renderPersonalOnboarding(
       `<!-- tk:onboard:exercise ${exercise.id} -->`,
       "",
       `- [ ] **Objective:** ${exercise.objective}`,
-      `- **Guide:** [${exercise.title}](../ONBOARDING.md#${exercise.guideSectionId})`,
-      `- **Outcome:** ${exercise.outcome}`,
+      `- **Read:** [${exercise.title} in the shared guide](../ONBOARDING.md#${exercise.guideSectionId})`,
+      `- **Done when:** ${exercise.outcome}`,
       "",
-      "**Notes**",
+      "### Notes",
       "",
-      "_Add your observations._",
+      "_What did you learn? What did you try?_",
       "",
-      "**Questions**",
+      "### Questions",
       "",
       "_Add questions for a person or a runtime check._",
       "",
-      "**Evidence**",
+      "### Evidence",
       "",
-      "_Add repository-relative references or results you observed._",
+      "_Add file references, commands tried, and results observed._",
       "",
     );
   }
@@ -53,25 +54,23 @@ export function renderPersonalOnboardingPlan(
   view: PersonalOnboardingView,
 ): string {
   const lines = [
-    "Onboarding v2 plan (repository-only)",
-    "Exercise status is self-reported, not verified competence.",
+    "Onboarding plan",
+    "Work through the shared guide and record your findings in .transferkit.local/ONBOARDING.md.",
     ...(view.syncNeeded
-      ? [
-          "Personal Markdown has unsynchronized checkbox changes; run 'tk onboard sync'.",
-        ]
+      ? ["Checkbox edits pending: run 'tk onboard sync'."]
       : []),
     "",
   ];
   for (const [index, exercise] of view.exercises.entries()) {
     lines.push(
       `${index + 1}. ${exercise.title} [${view.statuses[exercise.id]}] (${exercise.id})`,
-      `   Outcome: ${exercise.outcome}`,
-      `   Guide: ONBOARDING.md#${exercise.guideSectionId}`,
+      `   Goal: ${exercise.outcome}`,
+      `   Read: ONBOARDING.md#${exercise.guideSectionId}`,
     );
   }
   lines.push(
     "",
-    "Record notes and evidence in .transferkit.local/ONBOARDING.md. Use 'tk onboard task <v2-id> <status>' or edit a checkbox and run 'tk onboard sync'.",
+    "Next: open .transferkit.local/ONBOARDING.md. Update a checkbox and run 'tk onboard sync', or use 'tk onboard task <v2-id> <status>'.",
   );
   return lines.join("\n");
 }
@@ -86,38 +85,41 @@ export function renderPersonalOnboardingStatus(
     ({ id }) => !["completed", "skipped"].includes(view.statuses[id]),
   );
   const lines = [
-    "Onboarding v2 progress (self-reported)",
-    `${completed}/${view.exercises.length} exercises completed; completion is not verified competence.`,
+    "Onboarding progress",
+    `${completed} / ${view.exercises.length} exercises complete (self-reported)`,
     ...(view.syncNeeded
-      ? [
-          "Personal Markdown has unsynchronized checkbox changes; run 'tk onboard sync'.",
-        ]
+      ? ["Checkbox edits pending: run 'tk onboard sync'."]
       : []),
     "",
     ...view.exercises.map(
-      ({ id, title }) => `- ${title} (${id}): ${view.statuses[id]}`,
+      ({ id, title }) => `- ${title}: ${view.statuses[id]} (${id})`,
     ),
-    ...(next ? ["", `Next: ${next.title} (${next.id})`] : []),
+    ...(next
+      ? ["", `Next: ${next.title} — open .transferkit.local/ONBOARDING.md`]
+      : []),
     "",
-    "Remaining questions and unknowns",
+    "Questions and unknowns",
   ];
   const questions = [
     ...view.questions.map((item) => `Personal: ${item}`),
-    ...view.unknowns.map((item) => `Shared guide: ${item}`),
+    ...view.unknowns.map(
+      (item) =>
+        `Guide: ${item.replace(/^\*\*(?:Unknown|Runtime unverified):\*\* /u, "")}`,
+    ),
   ];
   if (questions.length === 0)
     lines.push(
-      "No questions recorded here; review .transferkit.local/ONBOARDING.md and ONBOARDING.md#unknowns.",
+      "No personal questions recorded. Review ONBOARDING.md#unknowns.",
     );
   else {
     lines.push(
       ...questions
-        .slice(0, 6)
+        .slice(0, 2)
         .map((item) => `- ${sanitizeHandoverValue(item)}`),
     );
-    if (questions.length > 6)
+    if (questions.length > 2)
       lines.push(
-        `- ${questions.length - 6} more in the personal workspace or shared guide.`,
+        `- ${questions.length - 2} more; see .transferkit.local/ONBOARDING.md and ONBOARDING.md#unknowns.`,
       );
   }
   return lines.join("\n");

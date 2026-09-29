@@ -77,7 +77,7 @@ describe("personal Markdown and JSON synchronization", () => {
         stderr: () => undefined,
       }),
     ).toBe(0);
-    expect(output.join("\n")).toContain(`(${id}): completed`);
+    expect(output.join("\n")).toContain(`completed (${id})`);
     expect(output.join("\n")).toContain("self-reported");
   });
 
