@@ -50,6 +50,36 @@ export interface CandidateFlow {
   steps: { componentId: string; evidence: Evidence[] }[];
 }
 
+export interface RouteTraceOperation {
+  kind: "call" | "guard" | "branch" | "assignment";
+  category?: "repository" | "service" | "validation";
+  target?: string;
+  method?: string;
+  property?: string;
+  value?: string;
+  condition?: string;
+  conditional?: string;
+  awaited?: boolean;
+  catchDepth?: number;
+  evidence: Evidence[];
+}
+
+export interface RouteTrace {
+  routeFindingId: string;
+  handler: string;
+  serviceMethod: string;
+  operations: RouteTraceOperation[];
+  gaps: string[];
+}
+
+export interface ExplainedFlow {
+  routeFindingId: string;
+  title: string;
+  entryPoint: string;
+  steps: { text: string; evidence: Evidence[]; citations?: Evidence[] }[];
+  gaps: string[];
+}
+
 export interface OperationalCapability {
   id: string;
   kind:

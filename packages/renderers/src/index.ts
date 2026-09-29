@@ -14,6 +14,7 @@ export const dependencies = [corePackageName] as const;
 export { renderHandoverPackageV2 } from "./handover-package-v2.js";
 export { renderTransferHandover } from "./transfer-handover.js";
 export { renderHandoverCoverageAudit } from "./handover-coverage-audit.js";
+export { renderOnboardingGuide } from "./onboarding-guide.js";
 
 export {
   renderHandoverPackage,
@@ -176,3 +177,8 @@ function appendField(
     `- **${label}:** ${value === undefined ? `_${missing}_` : sanitizeHandoverValue(value)}`,
   );
 }
+export {
+  renderPersonalOnboarding,
+  renderPersonalOnboardingPlan,
+  renderPersonalOnboardingStatus,
+} from "./personal-onboarding.js";

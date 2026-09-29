@@ -36,6 +36,7 @@ describe("realistic NestJS repository scan", () => {
         "configuration",
         "environment.template",
         "containerization",
+        "setup.service",
         "ci.workflow",
       ]),
     );

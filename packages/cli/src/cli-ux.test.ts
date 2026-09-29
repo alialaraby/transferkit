@@ -19,6 +19,61 @@ describe("CLI experience", () => {
     expect(result.stdout.join("\n")).toContain(text);
   });
 
+  it("protects an existing ONBOARDING.md before scanning", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "transferkit-cli-"));
+    const original = "# Human notes\n";
+    await writeFile(join(directory, "ONBOARDING.md"), original);
+    await writeFile(join(directory, "package.json"), "{broken");
+    const result = await command(directory, ["onboard", "guide"]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toEqual([
+      "Error: ONBOARDING.md has no TransferKit guide markers; it was left untouched. Move it aside, run 'tk onboard guide', then merge your notes back.",
+    ]);
+    expect(await readFile(join(directory, "ONBOARDING.md"), "utf8")).toBe(
+      original,
+    );
+  });
+
+  it("creates a repository-only guide without personal progress state", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "transferkit-cli-"));
+    await writeFile(
+      join(directory, "package.json"),
+      '{"name":"sample","dependencies":{"@nestjs/core":"1.0.0"}}',
+    );
+    await mkdir(join(directory, ".transferkit"));
+    await writeFile(join(directory, ".transferkit/handover.json"), "{broken");
+    const result = await command(directory, ["onboard", "guide"]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout[0]).toContain("Generated ONBOARDING.md");
+    const guide = await readFile(join(directory, "ONBOARDING.md"), "utf8");
+    expect(guide).toContain("## Unknowns");
+    expect(guide).toContain("Runtime unverified");
+    await expect(
+      readFile(join(directory, ".transferkit.local/onboarding-progress.json")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("creates a personal workspace from the shared guide without changing JSON progress", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "transferkit-cli-"));
+    await writeFile(join(directory, "package.json"), '{"name":"sample"}');
+    expect((await command(directory, ["onboard", "guide"])).exitCode).toBe(0);
+    const result = await command(directory, ["onboard", "workspace"]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout[0]).toContain("4 repository-only exercises");
+    expect(
+      await readFile(
+        join(directory, ".transferkit.local/ONBOARDING.md"),
+        "utf8",
+      ),
+    ).toContain("v2:attempt-local-run");
+    await expect(
+      readFile(
+        join(directory, ".transferkit.local/onboarding-progress.json"),
+        "utf8",
+      ),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
   it("uses a distinct exit code for invalid usage", async () => {
     const result = await command(process.cwd(), ["handover", "unknown"]);
     expect(result.exitCode).toBe(2);

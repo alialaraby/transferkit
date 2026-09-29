@@ -86,6 +86,7 @@ function discoverFile(
           ...(Node.isObjectLiteralExpression(metadata)
             ? {
                 imports: arrayProperty(metadata, "imports"),
+                importNames: arrayPropertyNames(metadata, "imports"),
                 controllers: arrayProperty(metadata, "controllers"),
                 providers: arrayProperty(metadata, "providers"),
               }
@@ -96,15 +97,21 @@ function discoverFile(
     }
     const controller = decorator(owner, "Controller");
     if (controller) {
-      const path =
-        literal(controller.getCallExpression()?.getArguments()[0]) ?? "";
+      const controllerPaths = routePaths(
+        controller.getCallExpression()?.getArguments()[0],
+      );
       add(
         findings,
         ast,
         controller,
         "application.controller",
         `controller:${name}:${location(ast, controller)}`,
-        { name, path },
+        {
+          name,
+          ...(controllerPaths?.length === 1
+            ? { path: controllerPaths[0] }
+            : {}),
+        },
         `NestJS controller ${name} handles routes`,
       );
       const routes: readonly [string, string][] = [
@@ -122,21 +129,54 @@ function discoverFile(
             ? method.getDecorators().find((item) => item.getName() === local)
             : undefined;
           if (!route) continue;
-          const segment =
-            literal(route.getCallExpression()?.getArguments()[0]) ?? "";
-          add(
-            findings,
-            ast,
-            route,
-            "application.route",
-            `route:${name}.${method.getName()}:${location(ast, route)}`,
-            {
-              controller: name,
-              method: method.getName(),
-              verb,
-              path: `/${[path, segment].filter(Boolean).join("/")}`,
-            },
-            `${verb} route on ${name}.${method.getName()}`,
+          const methodPaths = routePaths(
+            route.getCallExpression()?.getArguments()[0],
+          );
+          const paths =
+            controllerPaths &&
+            methodPaths &&
+            controllerPaths.length * methodPaths.length <= 20
+              ? [
+                  ...new Set(
+                    controllerPaths.flatMap((prefix) =>
+                      methodPaths.map(
+                        (segment) =>
+                          `/${[prefix, segment]
+                            .filter(Boolean)
+                            .map((part) => part.replace(/^\/+|\/+$/gu, ""))
+                            .filter(Boolean)
+                            .join("/")}`,
+                      ),
+                    ),
+                  ),
+                ]
+              : [undefined];
+          paths.forEach((path, index) =>
+            add(
+              findings,
+              ast,
+              route,
+              "application.route",
+              `route:${name}.${method.getName()}:${location(ast, route)}${paths.length > 1 ? `:${index + 1}` : ""}`,
+              {
+                controller: name,
+                method: method.getName(),
+                verb,
+                ...(path === undefined ? {} : { path }),
+              },
+              `${verb} route on ${name}.${method.getName()}`,
+              [
+                sourceEvidence(ast, controller),
+                ...routeDefinitionEvidence(
+                  ast,
+                  controller.getCallExpression()?.getArguments()[0],
+                ),
+                ...routeDefinitionEvidence(
+                  ast,
+                  route.getCallExpression()?.getArguments()[0],
+                ),
+              ],
+            ),
           );
         }
       }
@@ -332,11 +372,135 @@ function arrayProperty(
     : "";
 }
 
+function arrayPropertyNames(
+  object: Node & { getProperty(name: string): Node | undefined },
+  name: string,
+): string {
+  const property = object.getProperty(name);
+  if (!Node.isPropertyAssignment(property)) return "";
+  const initializer = property.getInitializer();
+  if (!Node.isArrayLiteralExpression(initializer)) return "";
+  return initializer
+    .getElements()
+    .flatMap((element) => {
+      if (Node.isIdentifier(element)) return [element.getText()];
+      if (Node.isCallExpression(element)) {
+        const expression = element.getExpression();
+        if (
+          Node.isPropertyAccessExpression(expression) &&
+          Node.isIdentifier(expression.getExpression())
+        )
+          return [expression.getExpression().getText()];
+      }
+      return [];
+    })
+    .join(", ");
+}
+
 function literal(node: Node | undefined): string | undefined {
   return Node.isStringLiteral(node) ||
     Node.isNoSubstitutionTemplateLiteral(node)
     ? node.getLiteralValue()
     : undefined;
+}
+
+function routeSegment(
+  node: Node | undefined,
+  seen = new Set<Node>(),
+): string | undefined {
+  if (!node) return "";
+  if (seen.has(node)) return undefined;
+  seen.add(node);
+  const value = literal(node);
+  if (value !== undefined) return value;
+  if (Node.isArrayLiteralExpression(node)) {
+    const elements = node.getElements();
+    return elements.length === 1 ? routeSegment(elements[0], seen) : undefined;
+  }
+  if (Node.isTemplateExpression(node)) {
+    let result = node.getHead().getLiteralText();
+    for (const span of node.getTemplateSpans()) {
+      const part = routeSegment(span.getExpression(), seen);
+      if (part === undefined) return undefined;
+      result += part + span.getLiteral().getLiteralText();
+    }
+    return result;
+  }
+  if (Node.isParenthesizedExpression(node))
+    return routeSegment(node.getExpression(), seen);
+  if (Node.isPropertyAccessExpression(node) || Node.isIdentifier(node)) {
+    const declarations = node.getSymbol()?.getDeclarations() ?? [];
+    if (declarations.length !== 1) return undefined;
+    const declaration = declarations[0];
+    if (Node.isPropertyDeclaration(declaration) && !declaration.isStatic())
+      return undefined;
+    if (
+      Node.isPropertyDeclaration(declaration) ||
+      Node.isVariableDeclaration(declaration)
+    )
+      return routeSegment(declaration.getInitializer(), seen);
+  }
+  return undefined;
+}
+
+function routePaths(
+  node: Node | undefined,
+  seen = new Set<Node>(),
+): string[] | undefined {
+  if (!node) return [""];
+  if (seen.has(node)) return undefined;
+  seen.add(node);
+  if (Node.isArrayLiteralExpression(node)) {
+    const paths = node
+      .getElements()
+      .map((item) => routePaths(item, new Set(seen)));
+    return paths.length > 0 && paths.every((item) => item !== undefined)
+      ? [...new Set(paths.flatMap((item) => item ?? []))]
+      : undefined;
+  }
+  if (Node.isParenthesizedExpression(node))
+    return routePaths(node.getExpression(), seen);
+  if (Node.isPropertyAccessExpression(node) || Node.isIdentifier(node)) {
+    const declarations = node.getSymbol()?.getDeclarations() ?? [];
+    if (declarations.length !== 1) return undefined;
+    const declaration = declarations[0];
+    if (Node.isPropertyDeclaration(declaration) && !declaration.isStatic())
+      return undefined;
+    if (
+      Node.isPropertyDeclaration(declaration) ||
+      Node.isVariableDeclaration(declaration)
+    )
+      return routePaths(declaration.getInitializer(), seen);
+  }
+  const segment = routeSegment(node);
+  return segment === undefined ? undefined : [segment];
+}
+
+function routeDefinitionEvidence(
+  ast: TypeScriptAst,
+  node: Node | undefined,
+  seen = new Set<Node>(),
+): ReturnType<typeof sourceEvidence>[] {
+  if (!node || seen.has(node)) return [];
+  seen.add(node);
+  if (Node.isPropertyAccessExpression(node) || Node.isIdentifier(node)) {
+    const declarations = node.getSymbol()?.getDeclarations() ?? [];
+    if (declarations.length !== 1) return [];
+    const declaration = declarations[0];
+    if (Node.isPropertyDeclaration(declaration) && !declaration.isStatic())
+      return [];
+    if (
+      Node.isPropertyDeclaration(declaration) ||
+      Node.isVariableDeclaration(declaration)
+    )
+      return [
+        sourceEvidence(ast, declaration),
+        ...routeDefinitionEvidence(ast, declaration.getInitializer(), seen),
+      ];
+  }
+  return node
+    .getChildren()
+    .flatMap((child) => routeDefinitionEvidence(ast, child, seen));
 }
 
 function location(ast: TypeScriptAst, node: Node): string {
@@ -352,11 +516,12 @@ function add(
   id: string,
   data: Record<string, string>,
   description: string,
+  extraEvidence: ReturnType<typeof sourceEvidence>[] = [],
 ): void {
   findings.push({
     id,
     kind,
     data,
-    evidence: [sourceEvidence(ast, node, description)],
+    evidence: [sourceEvidence(ast, node, description), ...extraEvidence],
   });
 }

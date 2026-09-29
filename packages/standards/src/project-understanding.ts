@@ -410,14 +410,17 @@ function buildFlows(
     )
       continue;
     const method = data(route, "method") ?? "";
-    const domain = domains.find((item) =>
+    const controllerDomains = domains.filter((item) =>
       item.controllers.includes(controller.id),
-    )!;
+    );
+    const domain =
+      controllerDomains.find((item) => item.name !== "Module") ??
+      controllerDomains[0]!;
     compose(
       route,
       controller,
       flowTitle(domain.name, method),
-      `${data(route, "verb") ?? "ROUTE"} ${data(route, "path") ?? ""}`.trim(),
+      routeEntry(route),
       route.id,
     );
   }
@@ -459,9 +462,7 @@ function buildFlows(
         componentId: id,
         evidence: byId.get(id)?.evidence ?? [],
       })),
-      entryPoints: routes.map(
-        (route) => `${data(route, "verb")} ${data(route, "path")}`,
-      ),
+      entryPoints: routes.map(routeEntry),
       integrationIds: [],
       entityIds: [],
       jobIds: [],
@@ -473,6 +474,14 @@ function buildFlows(
     });
   }
   return flows;
+}
+
+function routeEntry(route: NamedFinding): string {
+  const verb = data(route, "verb") ?? "ROUTE";
+  const path = data(route, "path");
+  return path
+    ? `${verb} ${path}`
+    : `${verb} ${data(route, "controller") ?? "Controller"}.${data(route, "method") ?? "method"} (path unresolved)`;
 }
 
 function flowTitle(domain: string, method: string): string {
