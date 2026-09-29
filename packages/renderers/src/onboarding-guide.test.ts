@@ -85,32 +85,24 @@ describe("repository-only onboarding guide", () => {
     expect(guide).toContain("## System overview");
     expect(guide).toContain("## Architecture relationships");
     expect(guide).toContain("## Candidate flows");
+    expect(guide).toContain("**Bootstrap:** src/main.ts creates AppModule");
+    expect(guide).toContain("DebtController → DebtService");
+    expect(guide).toContain("**Route candidate:** POST /debt");
     expect(guide).toContain(
-      "**Observed in code:** Bootstrap file: src/main.ts; creates AppModule",
+      "Trace calls, decisions, and persistence before treating these as complete flows",
     );
-    expect(guide).toContain(
-      "**Inferred from declarations:** DebtController → DebtService",
-    );
-    expect(guide).toContain("**Inferred candidate:** POST /debt");
-    expect(guide).toContain(
-      "Method calls, decisions, persistence order, and runtime outcomes are unverified",
-    );
-    expect(guide).toContain("Repository documentation and configuration only");
+    expect(guide).toContain("Commands below are documented or configured");
     expect(guide).toContain("`src/debt/debt.controller.ts:12`");
-    expect(guide).toContain(
-      "<details><summary>Repository references</summary>",
-    );
+    expect(guide).toContain("<details><summary>System references</summary>");
     expect(guide).not.toContain("verified end-to-end");
   });
 
   it("keeps generic HTTP clients out of named integrations", () => {
     const guide = renderOnboardingGuide(model, findings);
-    expect(guide).toContain(
-      "Named external integrations to investigate: HyperPay",
-    );
+    expect(guide).toContain("Integration names to investigate:** HyperPay");
     expect(guide).not.toContain("HyperPay, HyperPay");
-    expect(guide).not.toContain("integrations to investigate: axios");
-    expect(guide).not.toContain("integrations to investigate: fetch");
+    expect(guide).not.toContain("integrations to investigate:** axios");
+    expect(guide).not.toContain("integrations to investigate:** fetch");
     expect(guide).not.toContain("Unknown HTTP Integration");
   });
 
@@ -140,17 +132,15 @@ describe("repository-only onboarding guide", () => {
       .split("## Explained flow\n")[1]!
       .split("## Candidate flows")[0];
     expect(explained).toContain(
-      "1. The handler directly calls the service method. [Step 1]",
+      "1. The handler directly calls the service method.",
     );
-    expect(explained).toContain(
-      "2. The method awaits `DebtRepository.save`. [Step 2]",
-    );
+    expect(explained).toContain("2. The method awaits `DebtRepository.save`.");
     expect(explained).toContain(
       "Step 1: `src/debt/debt.controller.ts:25`, `src/debt/debt.service.ts:40`",
     );
     expect(explained).toContain("Step 2: `src/debt/debt.service.ts:60`");
     expect(explained).not.toContain("src/debt/debt.controller.ts:12");
-    expect(guide).not.toContain("**Inferred candidate:** POST /debt");
+    expect(guide).not.toContain("**Route candidate:** POST /debt");
   });
 
   it("selects at most two complementary traces and leaves unsupported routes as candidates", () => {
@@ -375,7 +365,9 @@ it("renders the port contradiction as a question and redacts configuration value
   const setup = guide
     .split("## Setup and operations\n")[1]!
     .split("## Unknowns")[0]!;
-  expect(setup).toContain("Documented, runtime unverified — install");
+  expect(setup).toContain(
+    "**Install:** `npm install` (documented in `README.md:10`)",
+  );
   expect(setup).toContain("Is PORT set to the mapped container port?");
   expect(setup).toContain("DB_PASSWORD");
   expect(setup).not.toContain("private-value");
@@ -464,7 +456,7 @@ it("distinguishes root imports, cites jobs and candidate method bodies, and asks
       },
     ],
   );
-  expect(guide).toContain("Root module imports: DebtModule, ConfigModule");
+  expect(guide).toContain("**Root imports:** DebtModule, ConfigModule");
   expect(guide).toContain("ReminderJob.run: `src/reminder.job.ts:22`");
   expect(guide).toContain(
     "Integration signal HyperPay: `src/debt/debt.controller.ts:12`",
@@ -502,7 +494,7 @@ it("shows source-backed setup prerequisites without environment values", () => {
     },
   ]);
   expect(guide).toContain("requires .env");
-  expect(guide).toContain("mounts initialization file ./db/init.sql");
+  expect(guide).toContain("mounts ./db/init.sql");
   expect(guide).toContain("What build step produces the compiled output");
   expect(guide).not.toContain("secret");
 });

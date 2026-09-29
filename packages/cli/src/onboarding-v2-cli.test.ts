@@ -36,9 +36,7 @@ describe("onboard v2 CLI display", () => {
   it("explains the intended command flow in help", async () => {
     const help = await command(process.cwd(), "onboard", "--help");
     expect(help.code).toBe(0);
-    expect(help.output).toContain(
-      "guide → workspace → plan/status → task or sync",
-    );
+    expect(help.output).toContain("Start: guide → workspace → plan");
   });
 
   it("shows four ordered v2 exercises with status, outcome, and guide link", async () => {
@@ -68,8 +66,8 @@ describe("onboard v2 CLI display", () => {
     expect(positions.every((position) => position >= 0)).toBe(true);
     expect(positions).toEqual([...positions].sort((a, b) => a - b));
     expect(plan.output).toContain("Understand the system [completed]");
-    expect(plan.output).toContain("Outcome: Write a short system map");
-    expect(plan.output).toContain("Guide: ONBOARDING.md#system-overview");
+    expect(plan.output).toContain("Goal: Write a short system map");
+    expect(plan.output).toContain("Read: ONBOARDING.md#system-overview");
     expect(plan.output).not.toContain("Review scheduled job");
   });
 
@@ -95,15 +93,13 @@ describe("onboard v2 CLI display", () => {
     );
     const status = await command(cwd, "onboard", "status");
     expect(status.code).toBe(0);
-    expect(
-      status.output.startsWith("Onboarding v2 progress (self-reported)"),
-    ).toBe(true);
+    expect(status.output.startsWith("Onboarding progress")).toBe(true);
     expect(status.output).toContain(
-      "Remaining questions and unknowns\n- Personal: Who owns local recovery?",
+      "Questions and unknowns\n- Personal: Who owns local recovery?",
     );
     expect(status.output).toContain("Legacy onboarding progress\n");
     expect(status.output.indexOf("Legacy onboarding progress")).toBeGreaterThan(
-      status.output.indexOf("Remaining questions and unknowns"),
+      status.output.indexOf("Questions and unknowns"),
     );
     expect(
       await readFile(

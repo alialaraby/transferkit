@@ -100,7 +100,9 @@ export function renderOnboardingGuide(
     ...named("application.entry-point"),
     ...named("framework"),
     ...named("language"),
-    ...named("application.module"),
+    ...named("application.module").filter((item) =>
+      rootModules.some((module) => module.name === data(item, "name")),
+    ),
     ...named("database"),
     ...named("database.configuration"),
   ].flatMap((item) => item.evidence);
@@ -124,65 +126,63 @@ export function renderOnboardingGuide(
   const lines = [
     "# Onboarding guide",
     "",
-    "Repository-only guide generated from static evidence.",
+    "Start with the system map, trace a flow, then try a local run. Record what you learn in `.transferkit.local/ONBOARDING.md`.",
+    "",
+    "This guide uses repository evidence. Module names and declarations suggest relationships; commands come from documentation or configuration. Runtime behavior remains unverified until you try it. Open each reference block for the nearby source locations.",
     "",
     "## System overview",
     "",
     ...fact(
-      "Observed in code",
-      `Bootstrap file: ${entryFiles.join(", ")}; creates ${unique(names("application.entry-point", "module")).join(", ")}`,
+      "Bootstrap",
+      `${entryFiles.join(", ")} creates ${unique(names("application.entry-point", "module")).join(", ")}`,
       entryFiles.length > 0,
     ),
     ...fact(
-      "Observed in repository",
-      `Technology signals: ${unique([...names("framework"), ...names("language")]).join(", ")}`,
+      "Technology",
+      unique([...names("framework"), ...names("language")]).join(", "),
       names("framework").length + names("language").length > 0,
     ),
     ...fact(
-      "Observed in code",
-      `Root module: ${rootModules.map((item) => item.name).join(", ")}`,
+      "Root module",
+      rootModules.map((item) => item.name).join(", "),
       rootModules.length > 0,
     ),
+    ...fact("Root imports", rootImports.join(", "), rootImports.length > 0),
     ...fact(
-      "Observed in code",
-      `Root module imports: ${rootImports.join(", ")}`,
-      rootImports.length > 0,
-    ),
-    ...fact(
-      "Inferred",
-      `Other discovered feature/API modules by name: ${unique(
+      "Other feature modules (by name)",
+      unique(
         featureModules
           .filter((item) => !rootImports.includes(item.name))
           .map((item) => item.name),
       )
         .sort()
-        .join(", ")}`,
+        .join(", "),
       featureModules.some((item) => !rootImports.includes(item.name)),
     ),
     ...fact(
-      "Inferred",
-      `Other discovered support/integration modules by name: ${unique(
+      "Other support modules (by name)",
+      unique(
         supportModules
           .filter((item) => !rootImports.includes(item.name))
           .map((item) => item.name),
       )
         .sort()
-        .join(", ")}`,
+        .join(", "),
       supportModules.some((item) => !rootImports.includes(item.name)),
     ),
     ...fact(
-      "Observed in repository",
-      `Data-store signals: ${names("database").join(", ")}`,
+      "Data store",
+      names("database").join(", "),
       names("database").length > 0,
     ),
     ...fact(
-      "Inferred",
-      `Named external integrations to investigate: ${integrations.sort().join(", ")}`,
+      "Integration names to investigate",
+      integrations.sort().join(", "),
       integrations.length > 0,
     ),
     ...fact(
-      "Observed in code",
-      `Scheduled handlers: ${names("scheduled-job").sort().join(", ")}`,
+      "Scheduled handlers",
+      names("scheduled-job").sort().join(", "),
       names("scheduled-job").length > 0,
     ),
   ];
@@ -192,8 +192,7 @@ export function renderOnboardingGuide(
     );
   lines.push(
     "",
-    "Repository inspection is static; production behavior is unverified.",
-    ...details(overviewEvidence),
+    ...details(overviewEvidence, "System references"),
     ...(named("scheduled-job").length || integrations.length
       ? ["", "<details><summary>Job and integration references</summary>", ""]
       : []),
@@ -251,7 +250,7 @@ export function renderOnboardingGuide(
     lines.push("No supported component relationships were found.");
   else
     lines.push(
-      "These declarations indicate associations; runtime calls are unverified.",
+      "Declared relationships suggest where to inspect next; they do not establish runtime calls.",
       "",
     );
   for (const relation of relationships) {
@@ -259,7 +258,7 @@ export function renderOnboardingGuide(
     const to = components.get(relation.to)?.name;
     if (from && to)
       lines.push(
-        `- **Inferred from declarations:** ${safe(from)} → ${safe(to)} (${relation.kind.toLowerCase().replace(/_/gu, " ")}).`,
+        `- ${safe(from)} → ${safe(to)} (${relation.kind.toLowerCase().replace(/_/gu, " ")})`,
       );
   }
   lines.push(...details(relationships.flatMap((item) => item.evidence)), "");
@@ -267,17 +266,14 @@ export function renderOnboardingGuide(
     lines.push(
       "## Explained flow",
       "",
-      "These are partial static method-body traces. Runtime outcomes are unverified.",
+      "Partial traces from method bodies. Check the cited steps and open gaps before relying on an outcome.",
       "",
       ...explained.flatMap((flow) => [
-        `### ${safe(flow.title)}`,
+        `### ${safe(flowTitle(flow.title, flow.entryPoint))}`,
         "",
-        `**Observed in code:** ${safe(flow.entryPoint)}.`,
+        `**Route:** ${safe(flow.entryPoint)}`,
         "",
-        ...flow.steps.map(
-          (step, index) =>
-            `${index + 1}. ${safe(step.text)} [Step ${index + 1}]`,
-        ),
+        ...flow.steps.map((step, index) => `${index + 1}. ${safe(step.text)}`),
         "",
         "**Gaps:**",
         "",
@@ -303,7 +299,7 @@ export function renderOnboardingGuide(
   );
   if (remainingFlows.length)
     lines.push(
-      "Investigation starting points selected from route names and linked evidence. Method calls, decisions, persistence order, and runtime outcomes are unverified.",
+      "Route starting points inferred from names and linked evidence. Trace calls, decisions, and persistence before treating these as complete flows.",
       "",
     );
   if (remainingFlows.length === 0)
@@ -330,10 +326,10 @@ export function renderOnboardingGuide(
         ),
     );
     lines.push(
-      `### ${safe(flow.title)}`,
+      `### ${safe(flowTitle(flow.title, flow.entryPoints[0] ?? ""))}`,
       "",
-      `- **Inferred candidate:** ${safe(flow.entryPoints.join(", ") || "Entry point unknown")}.`,
-      `- **Observed starting component:** ${safe(start ?? "not identified")}. ${trace ? `Direct service method: ${safe(data(trace, "serviceMethod") ?? "unresolved")}.` : "Direct service method unresolved by the current trace."}`,
+      `- **Route candidate:** ${safe(flow.entryPoints.join(", ") || "Entry point unknown")}`,
+      `- **Start:** ${safe(start ?? "not identified")}. ${trace ? `Direct service method: ${safe(data(trace, "serviceMethod") ?? "unresolved")}.` : "Direct service method unresolved."}`,
       ...details([...(route?.evidence ?? []), ...(trace?.evidence ?? [])]),
       "",
     );
@@ -341,7 +337,7 @@ export function renderOnboardingGuide(
   lines.push(
     "## Setup and operations",
     "",
-    "Repository documentation and configuration only; no procedure has been run.",
+    "Commands below are documented or configured; check prerequisites and record what actually works.",
     "",
   );
   const setupCommands = named("setup.command");
@@ -354,7 +350,7 @@ export function renderOnboardingGuide(
       commands[0];
     if (preferred)
       lines.push(
-        `- **Documented, runtime unverified — ${purpose}:** \`${safe(data(preferred, "command") ?? "")}\` (${safe(preferred.evidence[0]?.file ?? "repository")}:${preferred.evidence[0]?.line ?? 1}).`,
+        `- **${purpose === "compiled-start" ? "Compiled start" : purpose[0]!.toUpperCase() + purpose.slice(1)}:** \`${safe(data(preferred, "command") ?? "")}\` (documented in ${reference(preferred.evidence[0]!)})`,
       );
   }
   const serviceFindings = named("setup.service");
@@ -363,7 +359,7 @@ export function renderOnboardingGuide(
   ).filter(Boolean);
   if (services.length)
     lines.push(
-      `- **Observed in Compose:** Services: ${safe(services.join(", "))}${services
+      `- **Compose services:** ${safe(services.join(", "))}${services
         .flatMap((service) => {
           const dependencies = unique(
             serviceFindings
@@ -374,7 +370,7 @@ export function renderOnboardingGuide(
             ? [`; ${service} depends on ${dependencies.join(", ")}`]
             : [];
         })
-        .join("")}. Local availability is runtime unverified.`,
+        .join("")}.`,
     );
   const envNames = unique(
     named("environment.variable").map((item) => data(item, "name") ?? ""),
@@ -390,7 +386,7 @@ export function renderOnboardingGuide(
       .slice(0, 5);
     if (selected.length)
       lines.push(
-        `- **Observed in code — ${purpose} variable names:** ${safe(selected.join(", "))}. Values are not read; required settings are unverified.`,
+        `- **${purpose[0]!.toUpperCase() + purpose.slice(1)} settings:** ${safe(selected.join(", "))}. Values and required settings are unverified.`,
       );
   }
   const appDefault = named("setup.port").find((item) =>
@@ -421,15 +417,15 @@ export function renderOnboardingGuide(
   );
   for (const item of envFiles)
     lines.push(
-      `- **Observed in Compose:** ${safe(data(item, "service") ?? "A service")} requires ${safe(data(item, "path") ?? "an environment file")} (${reference(item.evidence[0]!)}). Contents and availability are unverified.`,
+      `- **Environment file:** ${safe(data(item, "service") ?? "A service")} requires ${safe(data(item, "path") ?? "an environment file")} (${reference(item.evidence[0]!)}). Contents and availability are unverified.`,
     );
   for (const item of initMounts)
     lines.push(
-      `- **Observed in Compose:** ${safe(data(item, "service") ?? "A service")} mounts initialization file ${safe(data(item, "path") ?? "unknown")} (${reference(item.evidence[0]!)}). ${data(item, "present") === "yes" ? "The file exists in the repository" : data(item, "present") === "no" ? "The file was not found in the repository" : "File availability is unverified"}; initialization effects are unverified.`,
+      `- **Initialization file:** ${safe(data(item, "service") ?? "A service")} mounts ${safe(data(item, "path") ?? "unknown")} (${reference(item.evidence[0]!)}). ${data(item, "present") === "yes" ? "Present in the repository" : data(item, "present") === "no" ? "Missing from the repository" : "Availability unverified"}; initialization effects are unverified.`,
     );
   if (builtOutput)
     lines.push(
-      `- **Observed in Compose:** ${safe(data(builtOutput, "service") ?? "A service")} starts compiled output (${reference(builtOutput.evidence[0]!)}). ${dockerBuild ? `The Dockerfile includes a build step (${reference(dockerBuild.evidence[0]!)}).` : "A build step was not found in the inspected Dockerfile."} Runtime unverified.`,
+      `- **Compiled start:** ${safe(data(builtOutput, "service") ?? "A service")} starts compiled output (${reference(builtOutput.evidence[0]!)}). ${dockerBuild ? `The Dockerfile includes a build step (${reference(dockerBuild.evidence[0]!)}).` : "No build step was found in the inspected Dockerfile."} Verify the build before running.`,
     );
   if (
     appMapping &&
@@ -491,12 +487,10 @@ export function renderOnboardingGuide(
     );
   lines.push(
     ...details(
-      [
-        ...setupCommands.slice(0, 3),
-        ...serviceFindings.slice(0, 5),
-        ...named("setup.port"),
-        ...requirements,
-      ].flatMap((item) => item.evidence),
+      [...named("setup.port"), ...requirements].flatMap(
+        (item) => item.evidence,
+      ),
+      "Configuration references",
     ),
     "",
     "## Unknowns",
@@ -517,6 +511,19 @@ export function renderOnboardingGuide(
 
 function fact(label: string, statement: string, present: boolean): string[] {
   return present ? [`- **${label}:** ${safe(statement)}`] : [];
+}
+
+function flowTitle(title: string, entryPoint: string): string {
+  const words = title.trim().split(/\s+/u);
+  if (words.length === 3 && words[0]?.toLowerCase() === words[2]?.toLowerCase())
+    return `${words[0]} ${words[1]?.toLowerCase() === "add" ? "creation" : words[1]?.toLowerCase() === "initiate" ? "initiation" : words[1]}`;
+  if (
+    /^(?:GET|POST|PUT|PATCH|DELETE)\s+/u.test(entryPoint) &&
+    words.length === 2 &&
+    words[0]?.toLowerCase() === words[1]?.toLowerCase()
+  )
+    return `${words[0]} route`;
+  return title;
 }
 
 function reference(item: Evidence): string {
@@ -566,7 +573,7 @@ function specificUnknowns(
           : [];
     if (pair.length === 2)
       questions.push(
-        `- **Unknown:** ${safe(flow.title)} contains ordered, separate awaited save calls (${pair
+        `- **Unknown:** ${safe(flowTitle(flow.title, flow.entryPoints[0] ?? ""))} contains ordered, separate awaited save calls (${pair
           .map((item) => reference(item.evidence[0]!))
           .join(
             ", ",
@@ -583,7 +590,7 @@ function specificUnknowns(
     );
     if (caught)
       questions.push(
-        `- **Unknown:** ${safe(flow.title)} calls ${safe(`${caught.target}.${caught.method}`)} inside a caught try block (${reference(caught.evidence[0]!)}). If that call fails, what state remains and what recovery is intended?`,
+        `- **Unknown:** ${safe(flowTitle(flow.title, flow.entryPoints[0] ?? ""))} calls ${safe(`${caught.target}.${caught.method}`)} inside a caught try block (${reference(caught.evidence[0]!)}). If that call fails, what state remains and what recovery is intended?`,
       );
   }
   return questions;
@@ -730,7 +737,10 @@ function flowScore(flow: CandidateFlow, findings: readonly Finding[]): number {
   );
 }
 
-function details(evidence: readonly Evidence[]): string[] {
+function details(
+  evidence: readonly Evidence[],
+  title = "Repository references",
+): string[] {
   const references = unique(
     evidence
       .filter(
@@ -744,7 +754,7 @@ function details(evidence: readonly Evidence[]): string[] {
   if (references.length === 0) return [];
   return [
     "",
-    "<details><summary>Repository references</summary>",
+    `<details><summary>${title}</summary>`,
     "",
     ...references.map((item) => `- \`${safe(item).replace(/`/gu, "'")}\``),
     "",

@@ -57,6 +57,26 @@ describe("shared guide regeneration", () => {
     expect(await guide(directory)).toBe(edited);
   });
 
+  it("refreshes only the former generated introduction", async () => {
+    const directory = await fixture();
+    await generateOnboardingGuide(directory);
+    const current = await guide(directory);
+    const prior = current.replace(
+      /^# Onboarding guide\n\n[\s\S]*?(?=<!-- tk:onboard:section )/u,
+      "# Onboarding guide\n\nRepository-only guide generated from static evidence.\n\n",
+    );
+    await writeFile(join(directory, "ONBOARDING.md"), prior);
+    await generateOnboardingGuide(directory);
+    expect(await guide(directory)).toBe(current);
+    const custom = current.replace(
+      "Start with the system map",
+      "My team starts with the system map",
+    );
+    await writeFile(join(directory, "ONBOARDING.md"), custom);
+    await generateOnboardingGuide(directory);
+    expect(await guide(directory)).toBe(custom);
+  });
+
   it("preserves a human note when a different section changes", async () => {
     const directory = await fixture();
     await generateOnboardingGuide(directory);

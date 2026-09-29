@@ -123,7 +123,7 @@ export async function runCli(
         const legacySource = await optionalRead(
           join(environment.cwd, onboardingProgressFileName),
         );
-        let legacy = "No legacy progress recorded.";
+        let legacy: string | undefined;
         if (legacySource !== undefined) {
           try {
             const plan = await planOnboarding(environment.cwd);
@@ -141,7 +141,7 @@ export async function runCli(
           }
         }
         environment.stdout(
-          `${renderPersonalOnboardingStatus(view)}\n\nLegacy onboarding progress\n${legacy}`,
+          `${renderPersonalOnboardingStatus(view)}${legacy === undefined ? "" : `\n\nLegacy onboarding progress\n${legacy}`}`,
         );
       } else {
         const plan = await planOnboarding(environment.cwd);
@@ -274,7 +274,7 @@ const legacyHandoverCommands = new Set([
   "export",
   "flow",
 ]);
-const onboardUsage = `Build a shared guide and track personal onboarding
+const onboardUsage = `Explore a repository and track your onboarding
 
 Usage:
   tk onboard guide
@@ -285,15 +285,15 @@ Usage:
   tk onboard task <task-id> <status>
 
 Commands:
-  guide     Generate a repository-only ONBOARDING.md guide
-  workspace Create .transferkit.local/ONBOARDING.md exercises from the shared guide
-  sync      Synchronize personal exercise checkboxes and JSON progress
-  plan      Show v2 exercises when a managed guide and workspace exist; otherwise show the legacy plan
-  status    Show v2 progress first, with legacy progress separately
+  guide     Generate the shared ONBOARDING.md from repository evidence
+  workspace Create your personal .transferkit.local/ONBOARDING.md
+  plan      Show your exercises and where to start
+  status    Show progress, next exercise, and open questions
+  sync      Import checkbox edits into personal progress
   task      Set status: not-started, in-progress, completed, or skipped
 
-Workflow: guide → workspace → plan/status → task or sync
-Editing a personal checkbox? Run 'tk onboard sync' before checking status.`;
+Start: guide → workspace → plan
+As you work: edit your workspace → sync → status`;
 
 async function optionalRead(file: string): Promise<string | undefined> {
   try {

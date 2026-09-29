@@ -12,6 +12,8 @@ import {
 const snapshotName = ".transferkit/onboarding-guide-snapshot.json";
 const unmarkedMessage =
   "ONBOARDING.md has no TransferKit guide markers; it was left untouched. Move it aside, run 'tk onboard guide', then merge your notes back.";
+const oldGeneratedIntroduction =
+  "# Onboarding guide\n\nRepository-only guide generated from static evidence.\n\n";
 type Snapshot = { version: 1; sections: Record<string, string> };
 type Block = { id: string; start: number; end: number; text: string };
 
@@ -102,6 +104,10 @@ export async function generateOnboardingGuide(
   for (const block of generated)
     if (!currentIds.has(block.id))
       merged = `${merged.trimEnd()}\n\n${block.text}\n`;
+  if (merged.startsWith(oldGeneratedIntroduction))
+    merged =
+      proposed.slice(0, generated[0]!.start) +
+      merged.slice(oldGeneratedIntroduction.length);
   // A removed section with human edits remains in place and retains its baseline.
   for (const block of current)
     if (!generatedById.has(block.id)) {
