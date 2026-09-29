@@ -33,3 +33,21 @@ class NafathApiService {
   });
   expect(finding?.evidence[0]?.file).toBe("nafath.ts");
 });
+
+it("handles destructured local variables in outbound call arguments", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "tk-integration-binding-"));
+  await writeFile(
+    join(directory, "client.ts"),
+    `
+import axios from 'axios';
+class ExampleClient {
+  submit(response: { data: object }) {
+    const { data } = response;
+    return axios.post('https://example.test/items', { data });
+  }
+}
+`,
+  );
+  const findings = discoverSourceFeatures(directory);
+  expect(findings.filter(({ kind }) => kind === "integration")).toHaveLength(1);
+});
