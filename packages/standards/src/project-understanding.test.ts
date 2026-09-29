@@ -147,6 +147,25 @@ describe("deterministic Project Understanding", () => {
     expect(
       model.candidateFlows.some((item) => item.title === "Order lifecycle"),
     ).toBe(false);
+    const unresolved = understandProject(
+      findings.map((finding) =>
+        finding.id === "route"
+          ? {
+              ...finding,
+              data: {
+                controller: "OrderController",
+                method: "submitOrder",
+                verb: "POST",
+              },
+            }
+          : finding,
+      ),
+    );
+    expect(
+      unresolved.candidateFlows.find(
+        (item) => item.title === "Order submit order",
+      )?.entryPoints,
+    ).toEqual(["POST OrderController.submitOrder (path unresolved)"]);
   });
 
   it("distinguishes migration and runtime evidence from general persistence", () => {

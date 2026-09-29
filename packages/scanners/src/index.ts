@@ -14,6 +14,10 @@ import {
 } from "./handover-context.js";
 import { createTypeScriptAst } from "./typescript-ast.js";
 import {
+  discoverRouteTracesInAst,
+  type RouteTraceFinding,
+} from "./route-traces.js";
+import {
   discoverScheduledJobsInAst,
   type ScheduledJobFinding,
 } from "./scheduled-jobs.js";
@@ -31,6 +35,7 @@ export { buildRabbitMqMessagingModel } from "./messaging-model.js";
 export { discoverScheduledJobs, buildScheduledJobs } from "./scheduled-jobs.js";
 export { discoverSourceFeatures } from "./source-discovery.js";
 export { discoverHandoverContext } from "./handover-context.js";
+export type { RouteTraceFinding } from "./route-traces.js";
 export type { HandoverContextFinding } from "./handover-context.js";
 export { discoverRepositoryFiles } from "./repository-files.js";
 export type {
@@ -50,7 +55,8 @@ export type RepositoryFinding =
   | ScheduledJobFinding
   | SourceDiscoveryFinding
   | RepositoryFileFinding
-  | HandoverContextFinding;
+  | HandoverContextFinding
+  | RouteTraceFinding;
 
 export const packageName = "@transferkit/scanners";
 export const dependencies = [corePackageName] as const;
@@ -178,12 +184,14 @@ export async function scanRepository(
     detectProject(repositoryDirectory),
     discoverRepositoryFiles(repositoryDirectory),
   ]);
+  const contextFindings = discoverHandoverContextInAst(ast);
   return [
     ...projectFindings,
     ...discoverRabbitMqConsumersInAst(ast),
     ...discoverScheduledJobsInAst(ast),
     ...discoverSourceFeaturesInAst(ast),
-    ...discoverHandoverContextInAst(ast),
+    ...contextFindings,
+    ...discoverRouteTracesInAst(ast, contextFindings),
     ...fileFindings,
   ];
 }

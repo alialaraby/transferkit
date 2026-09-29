@@ -5,16 +5,28 @@ import { packageName as standardsPackageName } from "@transferkit/standards";
 import {
   renderOnboardingPlan,
   renderOnboardingStatus,
+  renderPersonalOnboardingPlan,
+  renderPersonalOnboardingStatus,
 } from "@transferkit/renderers";
 import {
   buildOwnershipReadinessEvidence,
   isTaskStatus,
+  parseOnboardingProgress,
+  reconcileOnboardingProgress,
 } from "@transferkit/core";
 import { inspectEvidence } from "./evidence.js";
+import { generateOnboardingGuide } from "./generate-onboarding-guide.js";
+import { generateOnboardingWorkspace } from "./generate-onboarding-workspace.js";
+import { readOnboardingV2View } from "./onboarding-v2-view.js";
+import {
+  setPersonalExerciseStatus,
+  syncPersonalOnboarding,
+} from "./personal-onboarding-sync.js";
 import { initializeHandover } from "./initialize-handover.js";
 import { planOnboarding } from "./plan-onboarding.js";
 import {
   loadOnboardingProgress,
+  onboardingProgressFileName,
   setOnboardingTaskStatus,
 } from "./onboarding-progress.js";
 import { planTransfer, refreshTransferSuggestions } from "./plan-transfer.js";
@@ -76,23 +88,68 @@ export async function runCli(
   }
 
   try {
+    if (args[0] === "onboard" && args[1] === "guide") {
+      environment.stdout(await generateOnboardingGuide(environment.cwd));
+      return 0;
+    }
+
+    if (args[0] === "onboard" && args[1] === "workspace") {
+      environment.stdout(await generateOnboardingWorkspace(environment.cwd));
+      return 0;
+    }
+
+    if (args[0] === "onboard" && args[1] === "sync") {
+      environment.stdout(await syncPersonalOnboarding(environment.cwd));
+      return 0;
+    }
+
     if (args[0] === "onboard" && args[1] === "plan") {
+      const { view, fallbackHint } = await readOnboardingV2View(
+        environment.cwd,
+      );
       environment.stdout(
-        renderOnboardingPlan(await planOnboarding(environment.cwd)),
+        view
+          ? renderPersonalOnboardingPlan(view)
+          : `Legacy onboarding plan\n\n${renderOnboardingPlan(await planOnboarding(environment.cwd))}\n\nOnboarding v2: ${fallbackHint}`,
       );
       return 0;
     }
 
     if (args[0] === "onboard" && args[1] === "status") {
-      const plan = await planOnboarding(environment.cwd);
-      const progress = await loadOnboardingProgress(environment.cwd, plan);
-      environment.stdout(
-        renderOnboardingStatus(
-          plan,
-          progress,
-          buildOwnershipReadinessEvidence(plan, progress),
-        ),
+      const { view, fallbackHint } = await readOnboardingV2View(
+        environment.cwd,
       );
+      if (view) {
+        const legacySource = await optionalRead(
+          join(environment.cwd, onboardingProgressFileName),
+        );
+        let legacy = "No legacy progress recorded.";
+        if (legacySource !== undefined) {
+          try {
+            const plan = await planOnboarding(environment.cwd);
+            const progress = reconcileOnboardingProgress(
+              parseOnboardingProgress(legacySource),
+              plan,
+            );
+            legacy = renderOnboardingStatus(
+              plan,
+              progress,
+              buildOwnershipReadinessEvidence(plan, progress),
+            );
+          } catch (error) {
+            legacy = `Legacy progress could not be read: ${diagnosticMessage(error)}`;
+          }
+        }
+        environment.stdout(
+          `${renderPersonalOnboardingStatus(view)}\n\nLegacy onboarding progress\n${legacy}`,
+        );
+      } else {
+        const plan = await planOnboarding(environment.cwd);
+        const progress = await loadOnboardingProgress(environment.cwd, plan);
+        environment.stdout(
+          `Legacy onboarding progress\n\n${renderOnboardingStatus(plan, progress, buildOwnershipReadinessEvidence(plan, progress))}\n\nOnboarding v2: ${fallbackHint}`,
+        );
+      }
       return 0;
     }
 
@@ -102,6 +159,12 @@ export async function runCli(
       if (taskId === undefined || !isTaskStatus(status)) {
         environment.stderr(`Error: invalid task status.\n\n${onboardUsage}`);
         return 2;
+      }
+      if (taskId.startsWith("v2:")) {
+        environment.stdout(
+          await setPersonalExerciseStatus(environment.cwd, taskId, status),
+        );
+        return 0;
       }
       const plan = await planOnboarding(environment.cwd);
       await setOnboardingTaskStatus(environment.cwd, plan, taskId, status);
@@ -211,17 +274,35 @@ const legacyHandoverCommands = new Set([
   "export",
   "flow",
 ]);
-const onboardUsage = `Plan and track onboarding
+const onboardUsage = `Build a shared guide and track personal onboarding
 
 Usage:
+  tk onboard guide
+  tk onboard workspace
+  tk onboard sync
   tk onboard plan
   tk onboard status
   tk onboard task <task-id> <status>
 
 Commands:
-  plan      Generate an onboarding plan
-  status    Show onboarding progress
-  task      Set status: not-started, in-progress, completed, or skipped`;
+  guide     Generate a repository-only ONBOARDING.md guide
+  workspace Create .transferkit.local/ONBOARDING.md exercises from the shared guide
+  sync      Synchronize personal exercise checkboxes and JSON progress
+  plan      Show v2 exercises when a managed guide and workspace exist; otherwise show the legacy plan
+  status    Show v2 progress first, with legacy progress separately
+  task      Set status: not-started, in-progress, completed, or skipped
+
+Workflow: guide → workspace → plan/status → task or sync
+Editing a personal checkbox? Run 'tk onboard sync' before checking status.`;
+
+async function optionalRead(file: string): Promise<string | undefined> {
+  try {
+    return await readFile(file, "utf8");
+  } catch (error) {
+    if (isNodeError(error) && error.code === "ENOENT") return undefined;
+    throw error;
+  }
+}
 
 function isHelpFlag(value: string | undefined): boolean {
   return value === "--help" || value === "-h";
@@ -242,3 +323,5 @@ function diagnosticMessage(error: unknown): string {
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {
   return error instanceof Error && "code" in error;
 }
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";

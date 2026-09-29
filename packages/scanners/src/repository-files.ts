@@ -10,12 +10,17 @@ export type RepositoryFileFinding = Finding<
   | "ci.workflow"
   | "integration"
   | "database.migration"
+  | "setup.command"
+  | "setup.service"
+  | "setup.port"
+  | "setup.requirement"
 >;
 
 export async function discoverRepositoryFiles(
   repositoryDirectory: string,
 ): Promise<RepositoryFileFinding[]> {
   const findings: RepositoryFileFinding[] = [];
+  findings.push(...(await discoverSetupFiles(repositoryDirectory)));
   for (const name of await rootFiles(repositoryDirectory)) {
     if (isEnvTemplate(name)) {
       findings.push({
@@ -119,6 +124,284 @@ export async function discoverRepositoryFiles(
     }
   }
   return findings;
+}
+
+async function discoverSetupFiles(
+  directory: string,
+): Promise<RepositoryFileFinding[]> {
+  const findings: RepositoryFileFinding[] = [];
+  const pkg = await optionalText(join(directory, "package.json"));
+  if (pkg) {
+    try {
+      const scripts = (JSON.parse(pkg) as Record<string, unknown>).scripts;
+      if (scripts && typeof scripts === "object" && !Array.isArray(scripts)) {
+        for (const name of [
+          "build",
+          "start",
+          "start:dev",
+          "start:prod",
+          "test",
+          "test:e2e",
+        ]) {
+          if (typeof (scripts as Record<string, unknown>)[name] === "string")
+            findings.push(
+              setupFinding(
+                "setup.command",
+                `script:${name}`,
+                {
+                  command: `npm run ${name}`,
+                  purpose:
+                    name === "build"
+                      ? "build"
+                      : name.startsWith("test")
+                        ? "test"
+                        : name === "start:prod"
+                          ? "compiled-start"
+                          : "start",
+                },
+                "package.json",
+                propertyLine(pkg, name),
+              ),
+            );
+        }
+      }
+    } catch {
+      /* The main package scanner reports malformed JSON. */
+    }
+  }
+  const readme = await optionalText(join(directory, "README.md"));
+  if (readme) {
+    let section = "";
+    let fenced = false;
+    readme.split(/\r?\n/u).forEach((line, index) => {
+      const heading = /^#{1,3}\s+(.+)$/u.exec(line);
+      if (heading && !fenced) section = heading[1]!.toLowerCase();
+      if (/^\s*```/u.test(line)) {
+        fenced = !fenced;
+        return;
+      }
+      if (!fenced || !/(?:setup|install|run|test)/u.test(section)) return;
+      const command = line.trim().replace(/^\$\s*/u, "");
+      if (
+        !/^npm install$/u.test(command) &&
+        !/^npm run (?:build|start(?::(?:dev|prod))?|test(?::e2e)?)$/u.test(
+          command,
+        )
+      )
+        return;
+      const purpose =
+        command === "npm install"
+          ? "install"
+          : command === "npm run build"
+            ? "build"
+            : command === "npm run start:prod"
+              ? "compiled-start"
+              : command.includes("test")
+                ? "test"
+                : "start";
+      findings.push(
+        setupFinding(
+          "setup.command",
+          `readme:${index + 1}`,
+          { command, purpose },
+          "README.md",
+          index + 1,
+        ),
+      );
+    });
+  }
+  const composeFile = (await optionalText(
+    join(directory, "docker-compose.yml"),
+  ))
+    ? "docker-compose.yml"
+    : "docker-compose.yaml";
+  const compose = await optionalText(join(directory, composeFile));
+  if (compose) {
+    let inServices = false;
+    let service = "";
+    let subsection = "";
+    compose.split(/\r?\n/u).forEach((line, index) => {
+      if (/^services:\s*$/u.test(line)) {
+        inServices = true;
+        return;
+      }
+      if (/^[^\s#][^:]*:/u.test(line)) {
+        inServices = false;
+        service = "";
+      }
+      if (!inServices) return;
+      const match = /^ {2}([\w-]+):\s*$/u.exec(line);
+      if (match) {
+        service = match[1]!;
+        subsection = "";
+        findings.push(
+          setupFinding(
+            "setup.service",
+            service,
+            { name: service },
+            composeFile,
+            index + 1,
+          ),
+        );
+        return;
+      }
+      if (!service) return;
+      const key = /^ {4}([\w-]+):/u.exec(line);
+      if (key) subsection = key[1]!;
+      if (subsection === "depends_on") {
+        const dependency = /^ {6}(?:-\s*)?([\w-]+)(?::\s*)?$/u.exec(line);
+        if (dependency)
+          findings.push(
+            setupFinding(
+              "setup.service",
+              `${service}:depends:${dependency[1]}`,
+              { name: service, dependsOn: dependency[1]! },
+              composeFile,
+              index + 1,
+            ),
+          );
+      }
+      if (subsection === "ports") {
+        const port =
+          /^\s+-\s*['"]?(?:(?:[\d.]+):)?(\d+):(\d+)['"]?\s*(?:#.*)?$/u.exec(
+            line,
+          );
+        if (port)
+          findings.push(
+            setupFinding(
+              "setup.port",
+              `${service}:${index + 1}`,
+              { service, hostPort: port[1]!, containerPort: port[2]! },
+              composeFile,
+              index + 1,
+            ),
+          );
+      }
+      if (subsection === "env_file") {
+        const envFile =
+          /^ {6}-\s*['"]?([^\s'"#]+)['"]?\s*(?:#.*)?$/u.exec(line) ??
+          /^ {4}env_file:\s*['"]?([^\s'"#]+)['"]?\s*(?:#.*)?$/u.exec(line);
+        const path = envFile?.[1];
+        if (
+          path &&
+          /^(?:\.\/)?[\w.-]+(?:\/[\w.-]+)*$/u.test(path) &&
+          !path.split("/").includes("..")
+        )
+          findings.push(
+            setupFinding(
+              "setup.requirement",
+              `${service}:env:${path}`,
+              { service, type: "envFile", path },
+              composeFile,
+              index + 1,
+            ),
+          );
+      }
+      if (subsection === "volumes") {
+        const mount =
+          /^ {6}-\s*['"]?(\.\/[\w./-]+):\/docker-entrypoint-initdb\.d\/[\w.-]+(?::(?:ro|rw))?['"]?\s*(?:#.*)?$/u.exec(
+            line,
+          );
+        if (mount && !mount[1]!.includes(".."))
+          findings.push(
+            setupFinding(
+              "setup.requirement",
+              `${service}:init:${mount[1]}`,
+              { service, type: "initMount", path: mount[1]! },
+              composeFile,
+              index + 1,
+            ),
+          );
+      }
+      if (subsection === "command" && /\bdist\/[^\s'"\]]+\.js\b/u.test(line))
+        findings.push(
+          setupFinding(
+            "setup.requirement",
+            `${service}:built-output`,
+            { service, type: "builtOutput" },
+            composeFile,
+            index + 1,
+          ),
+        );
+    });
+    for (const finding of findings.filter(
+      (item) =>
+        item.kind === "setup.requirement" && item.data.type === "initMount",
+    ))
+      finding.data.present = (await committedFileExists(
+        directory,
+        finding.data.path!.replace(/^\.\//u, ""),
+      ))
+        ? "yes"
+        : "no";
+  }
+  const lowerDockerfile = await optionalText(join(directory, "dockerfile"));
+  const dockerfile =
+    lowerDockerfile ?? (await optionalText(join(directory, "Dockerfile")));
+  if (dockerfile && /(?:^|\n)RUN\s+npm\s+run\s+build\b/u.test(dockerfile))
+    findings.push(
+      setupFinding(
+        "setup.requirement",
+        "dockerfile:build",
+        { type: "dockerBuild" },
+        lowerDockerfile === undefined ? "Dockerfile" : "dockerfile",
+        dockerfile
+          .split(/\r?\n/u)
+          .findIndex((line) => /^RUN\s+npm\s+run\s+build\b/u.test(line)) + 1,
+      ),
+    );
+  const main = await optionalText(join(directory, "src/main.ts"));
+  if (main) {
+    const lines = main.split(/\r?\n/u);
+    const assignment = lines.findIndex((line) =>
+      /\b(?:const|let)\s+port\s*=\s*process\.env\.PORT\s*(?:\|\||\?\?)\s*\d+/u.test(
+        line,
+      ),
+    );
+    const listen = lines.findIndex((line) =>
+      /\bapp\.listen\(\s*port\b/u.test(line),
+    );
+    if (assignment >= 0 && listen >= 0) {
+      const defaultPort = /(?:\|\||\?\?)\s*(\d+)/u.exec(
+        lines[assignment]!,
+      )?.[1];
+      if (defaultPort)
+        findings.push(
+          setupFinding(
+            "setup.port",
+            "app:default",
+            { service: "app", defaultPort, variable: "PORT" },
+            "src/main.ts",
+            assignment + 1,
+          ),
+        );
+    }
+  }
+  return findings;
+}
+
+async function optionalText(file: string): Promise<string | undefined> {
+  try {
+    return await readFile(file, "utf8");
+  } catch (error) {
+    if (isMissing(error)) return undefined;
+    throw error;
+  }
+}
+
+function setupFinding(
+  kind: RepositoryFileFinding["kind"],
+  id: string,
+  data: Record<string, string>,
+  file: string,
+  line: number,
+): RepositoryFileFinding {
+  return {
+    id: `${kind}:${id}`,
+    kind,
+    data,
+    evidence: [{ file, line, description: `${kind} declaration` }],
+  };
 }
 
 async function rootFiles(directory: string): Promise<string[]> {

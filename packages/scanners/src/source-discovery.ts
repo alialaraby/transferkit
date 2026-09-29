@@ -235,11 +235,19 @@ function integrationContext(
     for (const declaration of method.getDescendantsOfKind(
       SyntaxKind.VariableDeclaration,
     )) {
-      const name = declaration.getName();
+      const nameNode = declaration.getNameNode();
+      if (!Node.isIdentifier(nameNode)) continue;
+      const name = nameNode.getText();
       if (
         !call
           .getArguments()
-          .some((item) => new RegExp(`\\b${name}\\b`, "u").test(item.getText()))
+          .some(
+            (item) =>
+              (Node.isIdentifier(item) && item.getText() === name) ||
+              item
+                .getDescendantsOfKind(SyntaxKind.Identifier)
+                .some((identifier) => identifier.getText() === name),
+          )
       )
         continue;
       const initializer = declaration.getInitializer();
