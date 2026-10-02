@@ -1,6 +1,6 @@
 {
   "name": "transferkit",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Local-first CLI for engineering handover and onboarding workflows",
   "license": "MIT",
   "author": "Ali Alaraby",
@@ -39,6 +39,6 @@
     "typecheck": "tsc -b --noEmit"
   },
   "dependencies": {
-    "ts-morph": "^25.0.1"
+    "ts-morph": "^28.0.0"
   }
 }

@@ -5,6 +5,7 @@ import { readFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { runCli } from "./cli.js";
+import { startTerminalProgress } from "./terminal-progress.js";
 export {
   dependencies,
   packageName,
@@ -32,15 +33,23 @@ if (
     ? createPipedPrompt(readFileSync(0, "utf8"))
     : undefined;
 
+  const progress = startTerminalProgress(args, process.stderr);
   try {
     process.exitCode = await runCli(args, {
       cwd: process.cwd(),
-      stdout: console.log,
-      stderr: console.error,
+      stdout: (message) => {
+        progress.stop();
+        console.log(message);
+      },
+      stderr: (message) => {
+        progress.stop();
+        console.error(message);
+      },
       prompt: (message) =>
         terminal ? terminal.question(message) : pipedPrompt!(message),
     });
   } finally {
+    progress.stop();
     terminal?.close();
   }
 }
