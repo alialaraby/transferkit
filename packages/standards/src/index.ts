@@ -29,6 +29,7 @@ export { understandProject } from "./project-understanding.js";
 export { explainCandidateFlows } from "./explained-flow.js";
 export { selectOnboardingConcepts } from "./onboarding-concepts.js";
 export { selectOnboardingStoryInventory } from "./onboarding-story.js";
+export { selectOnboardingStories } from "./onboarding-story-selection.js";
 export { selectOnboardingContinuations } from "./onboarding-continuations.js";
 export { selectScheduledConcepts } from "./onboarding-scheduled.js";
 export {

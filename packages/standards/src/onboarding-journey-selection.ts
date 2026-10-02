@@ -3,6 +3,7 @@ import type {
   OnboardingConceptEvidence,
   OnboardingQueueEvidence,
   OnboardingScheduledCall,
+  OnboardingStoryInventory,
   OnboardingTrace,
   RouteTrace,
 } from "@transferkit/core";
@@ -35,6 +36,7 @@ export function preselectOnboardingEntries(
   queues: OnboardingQueueEvidence,
   scheduledCalls: readonly OnboardingScheduledCall[],
   focus?: string,
+  inventory?: OnboardingStoryInventory,
 ): {
   entries: string[];
   candidates: OnboardingEntryCandidate[];
@@ -130,10 +132,32 @@ export function preselectOnboardingEntries(
         right.preliminaryScore - left.preliminaryScore ||
         left.symbol.localeCompare(right.symbol),
     );
+  const central = inventory?.terms[0]?.name.toLowerCase();
+  const centralStarts = central
+    ? routes
+        .filter((item) => {
+          const method = item.symbol.split(".").at(-1) ?? "";
+          return (
+            item.verb === "POST" &&
+            (item.symbol.toLowerCase().includes(central) ||
+              item.path?.toLowerCase().includes(central)) &&
+            /^(?:add|create|register|submit|open|start)/iu.test(method)
+          );
+        })
+        .sort(
+          (left, right) =>
+            Number(/(?:create|new)/iu.test(right.path ?? "")) -
+              Number(/(?:create|new)/iu.test(left.path ?? "")) ||
+            right.preliminaryScore - left.preliminaryScore ||
+            left.symbol.localeCompare(right.symbol),
+        )
+        .slice(0, 2)
+    : [];
   const entries = [
     ...new Set([
       ...(matchingFocus[0] ? [matchingFocus[0].symbol] : []),
       ...rankedRoutes.slice(0, 16).map((item) => item.symbol),
+      ...centralStarts.map((item) => item.symbol),
       ...rankedRoutes
         .filter((item) => {
           const linked = legacy.get(item.routeFindingId ?? "");

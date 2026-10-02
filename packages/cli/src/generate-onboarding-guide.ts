@@ -2,17 +2,22 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
-import type { OnboardingSelectedConcept } from "@transferkit/core";
+import type {
+  OnboardingSelectedConcept,
+  OnboardingStoryInventory,
+} from "@transferkit/core";
 import { renderOnboardingGuide } from "@transferkit/renderers";
 import {
   discoverOnboardingRepositoryNotes,
+  discoverOnboardingStoryEvidence,
   scanOnboardingRepository,
 } from "@transferkit/scanners";
 import {
   explainCandidateFlows,
   preselectOnboardingEntries,
   selectOnboardingContinuations,
-  selectOnboardingJourneys,
+  selectOnboardingStories,
+  selectOnboardingStoryInventory,
   selectScheduledConcepts,
   selectOnboardingConcepts,
   understandProject,
@@ -43,38 +48,49 @@ export async function generateOnboardingGuide(
     );
 
   let focusSymbol: string | undefined;
+  let storyInventory: OnboardingStoryInventory | undefined;
   const { findings, traces, concepts, queues, scheduledCalls } =
-    await scanOnboardingRepository(directory, (scanned, context) => {
+    await scanOnboardingRepository(directory, async (scanned, context) => {
+      storyInventory = selectOnboardingStoryInventory(
+        await discoverOnboardingStoryEvidence(
+          directory,
+          scanned,
+          context.concepts,
+        ),
+      );
       const preliminary = preselectOnboardingEntries(
         scanned,
         context.queues,
         context.scheduledCalls,
         options.focus,
+        storyInventory,
       );
       focusSymbol = preliminary.focusSymbol;
       return preliminary.entries;
     });
   const model = understandProject(findings);
-  const selection = selectOnboardingJourneys(
+  const storySelection = selectOnboardingStories(
     traces,
+    storyInventory!,
     concepts,
     queues,
     focusSymbol,
   );
+  const selected = storySelection.chapters.flatMap((chapter) =>
+    chapter.trace ? [{ trace: chapter.trace, reason: chapter.reason }] : [],
+  );
   const selectedConcepts = mergeConcepts(
-    selection.selected.flatMap((item) =>
-      selectOnboardingConcepts(item.trace, concepts),
-    ),
+    selected.flatMap((item) => selectOnboardingConcepts(item.trace, concepts)),
   );
   const repositoryNotes = await discoverOnboardingRepositoryNotes(
     directory,
-    selection.selected.map((item) => item.trace),
+    selected.map((item) => item.trace),
     findings,
   );
   const displayedSymbols = new Set([
     ...(focusSymbol ? [focusSymbol] : []),
-    ...selection.selected.map((item) => item.trace.entry.symbol),
-    ...selection.rejected.map((item) => item.trace.entry.symbol),
+    ...selected.map((item) => item.trace.entry.symbol),
+    ...storySelection.rejected.map((item) => item.entry),
   ]);
   const displayFlowIds = model.candidateFlows
     .filter((flow) =>
@@ -98,7 +114,7 @@ export async function generateOnboardingGuide(
       findings,
       explainCandidateFlows(model, findings),
       {
-        journeys: selection.selected.map((item) => ({
+        journeys: selected.map((item) => ({
           trace: item.trace,
           reason: item.reason,
           continuations: selectOnboardingContinuations(item.trace, queues),
@@ -110,8 +126,8 @@ export async function generateOnboardingGuide(
           selectedConcepts,
         ),
         displayFlowIds,
-        rejected: selection.rejected.map((item) => ({
-          symbol: item.trace.entry.symbol,
+        rejected: storySelection.rejected.map((item) => ({
+          symbol: item.entry,
           reason: item.reason,
         })),
         repositoryNotes,

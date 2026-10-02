@@ -1,4 +1,5 @@
 import type { Evidence } from "./index.js";
+import type { OnboardingTrace } from "./onboarding-trace.js";
 
 export type OnboardingStoryClaimKind =
   | "purpose"
@@ -47,4 +48,40 @@ export interface OnboardingStoryInventory {
   terms: OnboardingStoryTerm[];
   rejectedDescriptions: OnboardingStoryEvidence["rejectedDescriptions"];
   unknowns: string[];
+}
+
+export type OnboardingStoryConnectionKind =
+  | "direct-call"
+  | "possible-async-continuation"
+  | "shared-artifact"
+  | "documented-relation"
+  | "unproven-association";
+
+export interface OnboardingStoryConnection {
+  from: string;
+  to: string;
+  kind: OnboardingStoryConnectionKind;
+  explanation: string;
+  evidence: Evidence[];
+}
+
+export interface OnboardingStoryChapter {
+  id: string;
+  role: "representative" | "complementary" | "focused";
+  entry: OnboardingStoryClaim;
+  input?: OnboardingStoryClaim;
+  output?: OnboardingStoryClaim;
+  trace?: OnboardingTrace;
+  reason: string;
+  decision?: Evidence;
+  result?: Evidence;
+  alternate?: Evidence;
+  firstUnsupportedBoundary?: { reason: string; evidence: Evidence[] };
+  inspectNext: Evidence[];
+}
+
+export interface OnboardingStorySelection {
+  chapters: OnboardingStoryChapter[];
+  connections: OnboardingStoryConnection[];
+  rejected: { entry: string; reason: string }[];
 }

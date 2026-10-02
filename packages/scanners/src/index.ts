@@ -209,8 +209,9 @@ export async function scanOnboardingRepository(
         context: {
           queues: OnboardingQueueEvidence;
           scheduledCalls: readonly OnboardingScheduledCall[];
+          concepts: OnboardingConceptEvidence;
         },
-      ) => readonly string[]),
+      ) => readonly string[] | Promise<readonly string[]>),
   limits: Partial<OnboardingTraceLimits> = {},
 ): Promise<{
   findings: RepositoryFinding[];
@@ -224,9 +225,10 @@ export async function scanOnboardingRepository(
   const { findings, contextFindings } = await scanRepositoryInAst(ast);
   const queues = discoverOnboardingQueuesInAst(ast);
   const scheduledCalls = discoverOnboardingScheduledCallsInAst(ast, findings);
+  const concepts = discoverOnboardingConceptsInAst(ast);
   const entries =
     typeof selectedEntries === "function"
-      ? selectedEntries(findings, { queues, scheduledCalls })
+      ? await selectedEntries(findings, { queues, scheduledCalls, concepts })
       : selectedEntries;
   const selected = contextFindings.filter(
     (route) =>
@@ -260,7 +262,7 @@ export async function scanOnboardingRepository(
       maxEntries: entries.length,
       ...limits,
     }),
-    concepts: discoverOnboardingConceptsInAst(ast),
+    concepts,
     queues,
     scheduledCalls,
     loadedFiles: ast.sourceFiles.length,

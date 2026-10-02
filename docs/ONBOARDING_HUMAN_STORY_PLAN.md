@@ -1,6 +1,6 @@
 # Human-first onboarding guide enhancement plan
 
-**Status:** Phases 0–1 complete; Phases 2–5 pending. The [Phase 0 acceptance baseline](ONBOARDING_HUMAN_STORY_PHASE0_BASELINE.md) records cross-repository answer keys and measurements. Phase 1 adds a typed, cited story inventory in core, scanners, and standards; guide rendering remains for Phase 3. This follows the existing [repository-only deep guide work](ONBOARDING_DEEP_GUIDE_PLAN.md). Its source traces, evidence rules, personal workspace, and safe regeneration remain the foundation. Milestone 9's real unfamiliar-engineer assessment is still open.
+**Status:** Phases 0–2 complete; Phases 3–5 pending. The [Phase 0 acceptance baseline](ONBOARDING_HUMAN_STORY_PHASE0_BASELINE.md) records cross-repository answer keys and measurements. Phase 1 adds a typed, cited story inventory; Phase 2 selects bounded story chapters and classifies supported or unproven connections. Human-first guide rendering remains for Phase 3. This follows the existing [repository-only deep guide work](ONBOARDING_DEEP_GUIDE_PLAN.md). Its source traces, evidence rules, personal workspace, and safe regeneration remain the foundation. Milestone 9's real unfamiliar-engineer assessment is still open.
 
 ## Why this change is needed
 
@@ -53,12 +53,14 @@ The same questions apply to a service, CLI, library, frontend, worker, or data j
 
 ### Phase 2 — Connect and select stories, not just deep traces
 
-- [ ] Group paths by *supported* shared state, call/event continuation, or documented workflow. Record edge type: direct call, possible asynchronous continuation, shared artifact, documented relation, or unproven association.
-- [ ] Choose a representative entry and complementary path for newcomer coverage: where work starts, a key decision, state/output, and a failure or alternate path. Let a documented purpose and core record weigh more than raw method/branch count. Retain `--focus` for a developer's specific question.
-- [ ] Do not force a single sequence. If creation, callback, and invoice are independent entry points touching the same record, show them as separate chapters around that record. If an edge is missing, state the first unsupported boundary and what to inspect next.
-- [ ] Keep deep trace limits and negative cases: no false path joining, callback execution, transaction completion, provider delivery, or dynamic target certainty.
+- [x] Group paths by *supported* shared state, call/event continuation, or documented workflow. Record edge type: direct call, possible asynchronous continuation, shared artifact, documented relation, or unproven association.
+- [x] Choose a representative entry and complementary path for newcomer coverage: where work starts, a key decision, state/output, and a failure or alternate path. Let a documented purpose and core record weigh more than raw method/branch count. Retain `--focus` for a developer's specific question.
+- [x] Do not force a single sequence. If creation, callback, and invoice are independent entry points touching the same record, show them as separate chapters around that record. If an edge is missing, state the first unsupported boundary and what to inspect next.
+- [x] Keep deep trace limits and negative cases: no false path joining, callback execution, transaction completion, provider delivery, or dynamic target certainty.
 
 **Gate:** B2C selection explains shipment creation/assignment and distinguishes mobile status from external callbacks; Debtbox selects a coherent ownership-relevant path; a CLI/library follows its own input-to-output shape. Selected paths may differ when repository evidence differs, but each selection has a recorded reason.
+
+**Phase 2 check:** On pinned snapshots, B2C selects shipment creation, fleet assignment, mobile pickup, and the external webhook as separate entries. Debtbox starts with debt creation and consent. The non-Nest CLI and sparse Python cases retain documented input/output chapters with an explicit source-trace boundary. The final seven-case regression found no broken source links; B2C generation was 6.605 s and 713.2 MiB peak RSS. These checks assess selection and citations, not newcomer usefulness.
 
 ### Phase 3 — Render the human reading path
 
@@ -89,4 +91,4 @@ The same questions apply to a service, CLI, library, frontend, worker, or data j
 
 This plan does not add hosted services, implicit AI, runtime execution, new language-specific deep tracers, or a business ontology. A non-TypeScript repository can still get a useful overview from its own documentation, manifests, public entry points, tests, and artifacts; unsupported inner behavior remains a cited gap. Optional AI prose may be considered later only as an opt-in rewrite of vetted claims, never as a source of new facts.
 
-Phases 0 and 1 are complete. The next implementation request can start **Phase 2 only**; later phases depend on its supported story connections, so the B2C example cannot quietly become the product template.
+Phases 0–2 are complete. The next implementation request can start **Phase 3 only**; later phases depend on its human reading path, so the B2C example cannot quietly become the product template.
