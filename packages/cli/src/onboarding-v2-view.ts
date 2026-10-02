@@ -67,7 +67,7 @@ export async function readOnboardingV2View(directory: string): Promise<{
   const currentJourneys = new Set(
     [
       ...(sections.get("explained-flow") ?? "").matchAll(
-        /^### Source journey: (.+)$/gmu,
+        /^### (?:Source journey|Entry to inspect): (.+)$/gmu,
       ),
     ].map((match) => match[1]!),
   );

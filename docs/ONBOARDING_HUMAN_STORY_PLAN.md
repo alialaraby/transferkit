@@ -1,6 +1,6 @@
 # Human-first onboarding guide enhancement plan
 
-**Status:** Phases 0–3 complete; Phases 4–5 pending. The [Phase 0 acceptance baseline](ONBOARDING_HUMAN_STORY_PHASE0_BASELINE.md) records cross-repository answer keys and measurements. Phase 1 adds a typed, cited story inventory; Phase 2 selects bounded story chapters and classifies supported or unproven connections; Phase 3 renders a human reading path. This follows the existing [repository-only deep guide work](ONBOARDING_DEEP_GUIDE_PLAN.md). Its source traces, evidence rules, personal workspace, and safe regeneration remain the foundation. Milestone 9's real unfamiliar-engineer assessment is still open.
+**Status:** Phases 0–4 complete; Phase 5 pending. The [Phase 0 acceptance baseline](ONBOARDING_HUMAN_STORY_PHASE0_BASELINE.md) records cross-repository answer keys and measurements. Phase 1 adds a typed, cited story inventory; Phase 2 selects bounded story chapters and classifies supported or unproven connections; Phase 3 renders a human reading path; Phase 4 aligns personal exercises with it. This follows the existing [repository-only deep guide work](ONBOARDING_DEEP_GUIDE_PLAN.md). Its source traces, evidence rules, personal workspace, and safe regeneration remain the foundation. Milestone 9's real unfamiliar-engineer assessment is still open.
 
 ## Why this change is needed
 
@@ -76,10 +76,12 @@ The same questions apply to a service, CLI, library, frontend, worker, or data j
 
 ### Phase 4 — Align personal learning with the story
 
-- [ ] Make the existing stable `v2:` exercises point to the new mental model, selected stories, change map, and safe observation. Keep their IDs, checked boxes, notes, questions, evidence and legacy progress intact.
-- [ ] When source selection changes, preserve completed work and flag stale links. A checked exercise remains self-reported progress, never a competence certificate.
+- [x] Make the existing stable `v2:` exercises point to the new mental model, selected stories, change map, and safe observation. Keep their IDs, checked boxes, notes, questions, evidence and legacy progress intact.
+- [x] When source selection changes, preserve completed work and flag stale links. A checked exercise remains self-reported progress, never a competence certificate.
 
 **Gate:** A newcomer can record what they understood, tried, and still need to ask without copying the whole guide. Sync and conflict tests continue to protect both Markdown and structured progress.
+
+**Phase 4 check:** Existing exercise IDs and progress storage remain unchanged. A disposable CLI guide exercise links its documented entry and the change map; after the guide entry is changed, status reports the stale link while keeping its completed checkbox, structured state, question, evidence, and note. Build, typecheck, lint, formatting, and all 288 tests pass, including sync and conflict tests. This checks preservation and navigation; independent newcomer utility remains Phase 5.
 
 ### Phase 5 — Independent accuracy, utility, and performance review
 
@@ -93,4 +95,4 @@ The same questions apply to a service, CLI, library, frontend, worker, or data j
 
 This plan does not add hosted services, implicit AI, runtime execution, new language-specific deep tracers, or a business ontology. A non-TypeScript repository can still get a useful overview from its own documentation, manifests, public entry points, tests, and artifacts; unsupported inner behavior remains a cited gap. Optional AI prose may be considered later only as an opt-in rewrite of vetted claims, never as a source of new facts.
 
-Phases 0–3 are complete. The next implementation request can start **Phase 4 only**; the B2C example remains a reviewer reference, not a product template.
+Phases 0–4 are complete. The next implementation request can start **Phase 5 only**; the B2C example remains a reviewer reference, not a product template.

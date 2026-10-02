@@ -74,7 +74,7 @@ describe("personal onboarding workspace", () => {
     );
     await generateOnboardingWorkspace(directory);
     const output = await workspace(directory);
-    expect(output).toContain("Check one explained static flow");
+    expect(output).toContain("Check one connected journey");
     expect(output).toContain(
       "documented commands are runtime unverified until tried",
     );
@@ -174,6 +174,64 @@ describe("personal onboarding workspace", () => {
     expect(outputs.join("\n")).toContain("Trace a flow: completed");
     expect(await workspace(directory)).toBe(retained);
     expect(retained).toContain("My own source notes.");
+  });
+
+  it("links a documented CLI entry and flags it when guide selection changes", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "tk-workspace-cli-stale-"));
+    await cp(
+      join(
+        dirname(fileURLToPath(import.meta.url)),
+        "../../../fixtures/onboarding-human-cli",
+      ),
+      directory,
+      { recursive: true },
+    );
+    await generateOnboardingGuide(directory);
+    await generateOnboardingWorkspace(directory);
+    const personalFile = join(directory, ".transferkit.local/ONBOARDING.md");
+    const initial = await workspace(directory);
+    expect(initial).toContain("<!-- tk:onboard:linked-journey event-count -->");
+    expect(initial).toContain("../ONBOARDING.md#change-points");
+    expect(initial).toContain("Read Start here and System map");
+    await writeFile(
+      personalFile,
+      `${initial
+        .replace(
+          "_Add questions for a person or a runtime check._",
+          "Who owns event validation?",
+        )
+        .replace(
+          "_Add file references, commands tried, and results observed._",
+          "src/cli.js:1 — inspect input handling.",
+        )}\nMy own input observation.\n`,
+    );
+    await setPersonalExerciseStatus(directory, "v2:trace-flow", "completed");
+    const retained = await workspace(directory);
+    const stateFile = join(directory, ".transferkit.local/onboarding-v2.json");
+    const state = await readFile(stateFile, "utf8");
+    const shared = await readFile(join(directory, "ONBOARDING.md"), "utf8");
+    await writeFile(
+      join(directory, "ONBOARDING.md"),
+      shared.replace(
+        "### Entry to inspect: event-count",
+        "### Entry to inspect: other-command",
+      ),
+    );
+    const outputs: string[] = [];
+    expect(
+      await runCli(["onboard", "status"], {
+        cwd: directory,
+        stdout: (value) => outputs.push(value),
+        stderr: () => undefined,
+      }),
+    ).toBe(0);
+    expect(outputs.join("\n")).toContain("Stale guide link: event-count");
+    expect(outputs.join("\n")).toContain("Trace a flow: completed");
+    expect(await workspace(directory)).toBe(retained);
+    expect(retained).toContain("My own input observation.");
+    expect(retained).toContain("Who owns event validation?");
+    expect(retained).toContain("src/cli.js:1 — inspect input handling.");
+    expect(await readFile(stateFile, "utf8")).toBe(state);
   });
 
   it("requires a marked shared guide", async () => {
