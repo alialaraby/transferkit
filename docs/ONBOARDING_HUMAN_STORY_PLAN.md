@@ -1,6 +1,6 @@
 # Human-first onboarding guide enhancement plan
 
-**Status:** Phase 0 complete; Phases 1–5 pending. The [Phase 0 acceptance baseline](ONBOARDING_HUMAN_STORY_PHASE0_BASELINE.md) records cross-repository answer keys and measurements. This follows the existing [repository-only deep guide work](ONBOARDING_DEEP_GUIDE_PLAN.md). Its source traces, evidence rules, personal workspace, and safe regeneration remain the foundation. Milestone 9's real unfamiliar-engineer assessment is still open.
+**Status:** Phases 0–1 complete; Phases 2–5 pending. The [Phase 0 acceptance baseline](ONBOARDING_HUMAN_STORY_PHASE0_BASELINE.md) records cross-repository answer keys and measurements. Phase 1 adds a typed, cited story inventory in core, scanners, and standards; guide rendering remains for Phase 3. This follows the existing [repository-only deep guide work](ONBOARDING_DEEP_GUIDE_PLAN.md). Its source traces, evidence rules, personal workspace, and safe regeneration remain the foundation. Milestone 9's real unfamiliar-engineer assessment is still open.
 
 ## Why this change is needed
 
@@ -45,9 +45,9 @@ The same questions apply to a service, CLI, library, frontend, worker, or data j
 
 ### Phase 1 — Build a cited repository story inventory
 
-- [ ] Discover a small set of likely purpose statements from project-specific README sections and relevant checked-in docs. Detect starter/boilerplate text and avoid promoting it to project purpose. Inspect manifests, executable entry points, public APIs, commands, handlers, tests and configuration as corroborating evidence.
-- [ ] Represent repository role, entry points, important data/artifacts, outputs, external boundaries, and safe observation candidates as typed, bounded claims with provenance and uncertainty. Keep this structured state separate from Markdown.
-- [ ] Identify a few central terms from repeated use across entries and outputs, then attach only supported descriptions. An entity declaration alone gives a code role, not business meaning. Preserve exact evidence for rejected or ambiguous descriptions.
+- [x] Discover a small set of likely purpose statements from project-specific README sections and relevant checked-in docs. Detect starter/boilerplate text and avoid promoting it to project purpose. Inspect manifests, executable entry points, public APIs, commands, handlers, tests and configuration as corroborating evidence.
+- [x] Represent repository role, entry points, important data/artifacts, outputs, external boundaries, and safe observation candidates as typed, bounded claims with provenance and uncertainty. Keep this structured state separate from Markdown.
+- [x] Identify a few central terms from repeated use across entries and outputs, then attach only supported descriptions. An entity declaration alone gives a code role, not business meaning. Preserve exact evidence for rejected or ambiguous descriptions.
 
 **Gate:** On B2C, the inventory can support “shipment is central” and distinguish vendor/fleet/driver relations without defining their business contracts. On a CLI/library it identifies commands/public APIs and outputs. On a sparse repo it gives a useful inventory plus explicit questions, with no invented purpose.
 
@@ -89,4 +89,4 @@ The same questions apply to a service, CLI, library, frontend, worker, or data j
 
 This plan does not add hosted services, implicit AI, runtime execution, new language-specific deep tracers, or a business ontology. A non-TypeScript repository can still get a useful overview from its own documentation, manifests, public entry points, tests, and artifacts; unsupported inner behavior remains a cited gap. Optional AI prose may be considered later only as an opt-in rewrite of vetted claims, never as a source of new facts.
 
-Phase 0 is complete. The next implementation request can start **Phase 1 only**; later phases depend on its cited inventory, so the B2C example cannot quietly become the product template.
+Phases 0 and 1 are complete. The next implementation request can start **Phase 2 only**; later phases depend on its supported story connections, so the B2C example cannot quietly become the product template.

@@ -28,6 +28,7 @@ export { suggestTransferPlan, transferSectionTitles } from "./transfer-plan.js";
 export { understandProject } from "./project-understanding.js";
 export { explainCandidateFlows } from "./explained-flow.js";
 export { selectOnboardingConcepts } from "./onboarding-concepts.js";
+export { selectOnboardingStoryInventory } from "./onboarding-story.js";
 export { selectOnboardingContinuations } from "./onboarding-continuations.js";
 export { selectScheduledConcepts } from "./onboarding-scheduled.js";
 export {

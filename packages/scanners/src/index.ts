@@ -53,6 +53,7 @@ export type { RouteTraceFinding } from "./route-traces.js";
 export type { HandoverContextFinding } from "./handover-context.js";
 export { discoverRepositoryFiles } from "./repository-files.js";
 export { discoverOnboardingRepositoryNotes } from "./onboarding-repository-notes.js";
+export { discoverOnboardingStoryEvidence } from "./onboarding-story.js";
 export type {
   MessagingConsumerData,
   MessagingConsumerFinding,
