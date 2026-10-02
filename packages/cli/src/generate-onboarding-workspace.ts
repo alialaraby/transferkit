@@ -44,11 +44,14 @@ export async function generateOnboardingWorkspace(
       "Shared ONBOARDING.md has no TransferKit section markers; run 'tk onboard guide' to create a managed guide first.",
     );
   const explained = /^### /mu.test(sections.get("explained-flow") ?? "");
-  const candidates = /^### /mu.test(sections.get("candidate-flows") ?? "");
+  const candidates = /\*\*Route candidate:\*\*/u.test(
+    sections.get("candidate-flows") ?? sections.get("reference-appendix") ?? "",
+  );
   const exercises = personalOnboardingExercises(
     new Set(sections.keys()),
     explained,
     candidates,
+    sections,
   );
   await mkdir(join(directory, ".transferkit.local"), { recursive: true });
   try {

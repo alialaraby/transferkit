@@ -17,6 +17,7 @@ export interface OnboardingV2View {
   questions: string[];
   unknowns: string[];
   syncNeeded: boolean;
+  staleJourneys: string[];
 }
 
 export async function readOnboardingV2View(directory: string): Promise<{
@@ -56,8 +57,31 @@ export async function readOnboardingV2View(directory: string): Promise<{
   const exercises = personalOnboardingExercises(
     new Set(sections.keys()),
     /^### /mu.test(sections.get("explained-flow") ?? ""),
-    /^### /mu.test(sections.get("candidate-flows") ?? ""),
+    /\*\*Route candidate:\*\*/u.test(
+      sections.get("candidate-flows") ??
+        sections.get("reference-appendix") ??
+        "",
+    ),
+    sections,
   );
+  const currentJourneys = new Set(
+    [
+      ...(sections.get("explained-flow") ?? "").matchAll(
+        /^### Source journey: (.+)$/gmu,
+      ),
+    ].map((match) => match[1]!),
+  );
+  const staleJourneys = [
+    ...personal.matchAll(/^<!-- tk:onboard:linked-journey ([^ ]+) -->$/gmu),
+  ]
+    .map((match) => {
+      try {
+        return decodeURIComponent(match[1]!);
+      } catch {
+        return match[1]!;
+      }
+    })
+    .filter((symbol) => !currentJourneys.has(symbol));
   return {
     view: {
       exercises,
@@ -69,6 +93,7 @@ export async function readOnboardingV2View(directory: string): Promise<{
         checkboxes.some(
           ({ id, checked }) => state.markdownSnapshot[id].checked !== checked,
         ),
+      staleJourneys,
     },
     fallbackHint: "",
   };

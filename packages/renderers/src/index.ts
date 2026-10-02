@@ -14,7 +14,12 @@ export const dependencies = [corePackageName] as const;
 export { renderHandoverPackageV2 } from "./handover-package-v2.js";
 export { renderTransferHandover } from "./transfer-handover.js";
 export { renderHandoverCoverageAudit } from "./handover-coverage-audit.js";
-export { renderOnboardingGuide } from "./onboarding-guide.js";
+export {
+  renderOnboardingGuide,
+  selectOnboardingFlows,
+  type OnboardingGuideOptions,
+  type OnboardingGuideJourney,
+} from "./onboarding-guide.js";
 
 export {
   renderHandoverPackage,

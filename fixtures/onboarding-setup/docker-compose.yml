@@ -1,0 +1,11 @@
+services:
+  app:
+    depends_on:
+      - db
+    env_file:
+      - .env.local
+    ports:
+      - "4010:3000"
+    command: node dist/main.js
+  db:
+    image: postgres:16

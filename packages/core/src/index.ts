@@ -14,6 +14,7 @@ export * from "./interview.js";
 export * from "./knowledge-gaps.js";
 export * from "./onboarding-plan.js";
 export * from "./onboarding-progress.js";
+export * from "./onboarding-trace.js";
 export * from "./personal-onboarding.js";
 export * from "./ownership-readiness.js";
 export * from "./secret-protection.js";

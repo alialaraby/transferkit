@@ -4,6 +4,7 @@ export interface PersonalOnboardingExercise {
   objective: string;
   guideSectionId: string;
   outcome: string;
+  linkedJourneys?: readonly string[];
 }
 
 export const personalOnboardingExerciseIds = [

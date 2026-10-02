@@ -46,7 +46,7 @@ describe("CLI experience", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout[0]).toContain("Generated ONBOARDING.md");
     const guide = await readFile(join(directory, "ONBOARDING.md"), "utf8");
-    expect(guide).toContain("## Unknowns");
+    expect(guide).toContain("## Specific questions");
     expect(guide).toContain("Runtime unverified");
     await expect(
       readFile(join(directory, ".transferkit.local/onboarding-progress.json")),

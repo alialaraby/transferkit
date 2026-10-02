@@ -1,6 +1,6 @@
 # Onboarding v2 — Product and Design Specification
 
-**Status: design target, with Milestone 9 slices in progress.** The maintainer has confirmed that Handover v3 passed its Debtbox Current Owner validation gate. The [illustrative Debtbox fixture](ONBOARDING_V2_DEBTBOX_FIXTURE.md) defines the desired reading experience; it is not current CLI output.
+**Status: Milestone 9 in progress.** The repository-only guide now includes bounded source-backed journeys, concepts, setup evidence, and change points. The personal workspace has four stable `v2:` exercises, Markdown/JSON checkbox sync, and v2-aware plan/status. Fixture regression and source spot checks are recorded in the [Phase 6 acceptance record](ONBOARDING_PHASE6_ACCEPTANCE.md); a real unfamiliar-engineer comparison is still pending. The [illustrative Debtbox fixture](ONBOARDING_V2_DEBTBOX_FIXTURE.md) remains a design target, not current CLI output.
 
 ## Goal and modes
 
@@ -13,15 +13,15 @@ When a v3 Transfer is available, selected Handover Items may **enrich** the same
 - Root `ONBOARDING.md` is the reusable, team-shareable **system guide**. It explains what the repository supports and where to investigate. Stable section anchors let people link to the same architecture, flow, operations, and unknowns sections. It contains no personal progress or private notes. It is reviewable through Git.
 - `.transferkit.local/ONBOARDING.md` is each engineer's **personal workspace**: outcome-based exercises, checkboxes, notes, questions, and evidence of work. Each exercise links to a guide section; it does not copy the entire guide. It remains local and uncommitted by default.
 - Personal structured state under `.transferkit.local/` holds stable exercise IDs, status, evidence references, and the synchronization snapshot needed to reconcile Markdown edits. The personal Markdown workspace is editable, not a disposable export. Checkbox changes and CLI progress changes synchronize in both directions. Preserve free-form prose and unknown sections. If both representations edit the same supported field differently, surface a conflict with both values and require an explicit resolution; never silently overwrite either side. A rescan must preserve personal work even if a suggested exercise disappears, and should expose stale links.
-- The guide's generated portions come from repository evidence and optional linked Transfer context. Human edits to a shared guide require a preservation/reconciliation policy before implementation; regeneration must not erase prose silently.
+- The current guide's generated portions come from repository evidence. Managed section markers and a generation snapshot preserve unrelated human prose and surface conflicting edits; an existing unmarked guide is not overwritten. Later layouts must retain this reconciliation behavior. Optional linked Transfer context remains future work.
 
 ## Content and evidence contract
 
-The guide should start with a concise system overview, entry point, major modules, data stores, integrations, background work, and important architecture relationships. Show a **few explained end-to-end flows**, chosen for learning value, with entry point, validation/decisions, persistence, side effects, and possible gaps. Describe setup and operations from checked-in evidence, and keep unknowns prominent. Avoid flat dependency lists and unsupported call graphs.
+The guide should start with a concise system overview and a map of supported entry points, modules, data stores, integrations, background work, and relationships. A curated concepts section should distinguish data shapes from business meanings. Show a few complementary, connected journeys where source permits, each with entry, inputs, decisions and alternate exits, visible read/write attempts, helper or job continuations, gaps, and relevant code/tests to inspect for a change. Describe setup and operations from checked-in evidence, and keep precise unknowns prominent. Sparse repositories may have fewer journeys. Avoid flat dependency lists, invented business purpose, and unsupported call graphs.
 
 Every material statement should carry a source label: **observed in code**, **inferred**, **supplied by a person**, or **runtime unverified**. Observed claims cite repository-relative files, symbols, or lines where available. Inferences state their basis and uncertainty. Person-supplied context links to its Handover Item ID when applicable. Commands found in a README or Compose file are documented commands, not proof they work. Use **runtime unverified** until someone actually executes and records a result. Do not invent business purpose, production behavior, verified run commands, successful recovery, or competence scores.
 
-The personal workspace turns the guide into exercises with an objective, starting guide link and evidence, concrete outcome, and space for notes, questions, and completion evidence. Examples: explain debt creation and consent with failure boundaries; run the service and record the actual result; trace payment to payout; identify what is needed to practice recovery. A checkbox is self-reported progress, not proof of system behavior or ownership readiness. An engineer or organization decides readiness.
+The personal workspace turns the guide into exercises with an objective, starting guide link and evidence, concrete outcome, and space for notes, questions, and completion evidence. Exercises should ultimately use the selected concepts and journeys to ask for an explanation, a likely change point, and a recorded local observation or exact blocker. A checkbox is self-reported progress, not proof of system behavior or ownership readiness. An engineer or organization decides readiness.
 
 ### First personal workspace slice: progress compatibility
 
@@ -29,11 +29,21 @@ The personal workspace has four fixed `v2:` exercise IDs based on learning outco
 
 ## Implementation sequence and acceptance
 
-1. Review the illustrative Debtbox acceptance fixture against supplied source-inspection evidence.
-2. Analyze current scanner, plan, state, CLI, and rendering capabilities against this specification. Record what can be reused and what is missing.
-3. Implement the smallest **repository-only guide** slice that produces useful overview, relationships, one explained flow, setup limits, and unknowns from evidence.
-4. Add the personal workspace and structured progress synchronization with stable exercise identity, prose preservation, and surfaced conflicts.
-5. Add optional v3 Handover Item enrichment by stable ID without making it a dependency of repository-only use.
-6. Validate with a real newcomer, first repository-only and then with handover context when available. Measure useful understanding, ability to trace and run, questions left open, and misleading claims.
+The initial repository-only guide and personal workspace slices are implemented. Follow the ordered [deep guide slices](ONBOARDING_DEEP_GUIDE_PLAN.md) for acceptance fixtures, bounded tracing, concepts and continuations, setup, adaptive exercises, guide regeneration, and a real repository-only newcomer assessment. The four existing `v2:` IDs and legacy progress must survive later improvements.
 
-Milestone 9 remains in progress until implementation and real newcomer validation are done. The earlier onboarding implementation remains historically accurate: it creates a staged plan from repository findings and legacy handover knowledge, and stores JSON progress locally. The current guide and personal workspace slices add separate Markdown surfaces and checkbox synchronization; v3 Item enrichment remains planned.
+### Slice 0 acceptance cases
+
+These are source-grounded assertions for tracing and rendering review. Use the neutral source under `fixtures/onboarding-deep-guide/` and the small JavaScript app under `fixtures/onboarding-plain-node/`. Positive claims must cite the listed source; negative claims must remain absent or be explicit gaps. Test semantic claims and citations rather than whole Markdown whitespace.
+
+| Case | Required claim and citation | Forbidden claim |
+| --- | --- | --- |
+| Early throw | `service.ts:44` throws when `valid` is false; later calls are on a different path. | The invalid path reads, saves, queues, or returns an order. |
+| Exclusive branch | `service.ts:47-50` assigns either priority or standard status under distinct conditions. | Both status assignments happen on one path. |
+| Repeated helper | Both call sites at `service.ts:52-53` link to `OrderService.recordAttempt` at `service.ts:69`. | One invocation is silently collapsed, or constructor injection becomes a call. |
+| Local manager alias | `service.ts:54-62` records a query-runner alias, write-like `manager.save`, and separate commit/catch/finally calls. The interface at `service.ts:18-27` has no implementation body. | A write committed, rollback succeeded, or all branches ran. `CacheSnapshot.save` at `service.ts:65` is database persistence. |
+| Possible continuation | Enqueue call `service.ts:64` and handler registration `worker.ts:7-10` share `assign-order`; `worker.ts:9` returns before the read when the ID is empty. | The job ran, an empty ID reads a record, or `ArchiveWorker` at `worker.ts:14-16` is connected to this enqueue. |
+| Plain Node overview | `src/server.js:1-22` exposes a health path and in-memory parcel lookup; `README.md:3-5` documents `npm start`. | A database, verified run, business purpose beyond the README, or a NestJS flow is invented. |
+
+Before calling a guide slice readable, a reviewer should locate each selected journey's entry, at least one cited decision or explicit lack of one, an alternate exit where present, the first unsupported edge, and likely change/test files within the journey section. Every substantive behavioral sentence should be verifiable at its cited source. Keep broad inventories out of the opening section; if a small fixture lacks evidence for a journey, say so rather than filling space. This is a reviewer rubric, not an automated understanding score.
+
+Milestone 9 remains open until the deep repository-only guide and personal workspace pass their gates and an unfamiliar engineer completes the repository-only assessment. If no engineer is available, report that gate as pending. Milestone 10 separately evaluates handover-assisted onboarding and broader real-world outcomes. Optional v3 Item enrichment remains a separate later addition, never a prerequisite for repository-only use.

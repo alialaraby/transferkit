@@ -11,6 +11,7 @@ export interface PersonalOnboardingView {
   questions: readonly string[];
   unknowns: readonly string[];
   syncNeeded: boolean;
+  staleJourneys?: readonly string[];
 }
 
 export function renderPersonalOnboarding(
@@ -32,6 +33,10 @@ export function renderPersonalOnboarding(
       `- [ ] **Objective:** ${exercise.objective}`,
       `- **Read:** [${exercise.title} in the shared guide](../ONBOARDING.md#${exercise.guideSectionId})`,
       `- **Done when:** ${exercise.outcome}`,
+      ...(exercise.linkedJourneys ?? []).map(
+        (symbol) =>
+          `<!-- tk:onboard:linked-journey ${encodeURIComponent(symbol)} -->`,
+      ),
       "",
       "### Notes",
       "",
@@ -46,6 +51,17 @@ export function renderPersonalOnboarding(
       "_Add file references, commands tried, and results observed._",
       "",
     );
+    if (exercise.id === "v2:attempt-local-run")
+      lines.push(
+        "### Attempt log",
+        "",
+        "Record only steps you actually tried. Keep credentials and environment values out of this file.",
+        "",
+        "| Date | Exact command or safe check | Observed result | Blocker |",
+        "| --- | --- | --- | --- |",
+        "|  |  |  |  |",
+        "",
+      );
   }
   return `${lines.join("\n").trimEnd()}\n`;
 }
@@ -59,11 +75,17 @@ export function renderPersonalOnboardingPlan(
     ...(view.syncNeeded
       ? ["Checkbox edits pending: run 'tk onboard sync'."]
       : []),
+    ...(view.staleJourneys?.length
+      ? [
+          `Stale guide link: ${view.staleJourneys.join(", ")}. Keep your notes; inspect the current guide.`,
+        ]
+      : []),
     "",
   ];
   for (const [index, exercise] of view.exercises.entries()) {
     lines.push(
       `${index + 1}. ${exercise.title} [${view.statuses[exercise.id]}] (${exercise.id})`,
+      `   Focus: ${exercise.objective}`,
       `   Goal: ${exercise.outcome}`,
       `   Read: ONBOARDING.md#${exercise.guideSectionId}`,
     );
@@ -90,12 +112,20 @@ export function renderPersonalOnboardingStatus(
     ...(view.syncNeeded
       ? ["Checkbox edits pending: run 'tk onboard sync'."]
       : []),
+    ...(view.staleJourneys?.length
+      ? [
+          `Stale guide link: ${view.staleJourneys.join(", ")}. Keep your notes; inspect the current guide.`,
+        ]
+      : []),
     "",
     ...view.exercises.map(
       ({ id, title }) => `- ${title}: ${view.statuses[id]} (${id})`,
     ),
     ...(next
-      ? ["", `Next: ${next.title} — open .transferkit.local/ONBOARDING.md`]
+      ? [
+          "",
+          `Next: ${next.title} — ${next.objective} Open .transferkit.local/ONBOARDING.md.`,
+        ]
       : []),
     "",
     "Questions and unknowns",

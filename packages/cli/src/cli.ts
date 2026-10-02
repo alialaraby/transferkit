@@ -57,6 +57,12 @@ export async function runCli(
     args.length === 4 && args[0] === "onboard" && args[1] === "task";
   const planCommand =
     args[0] === "handover" && args[1] === "plan" && args.length >= 2;
+  const focusedGuide =
+    args.length === 4 &&
+    args[0] === "onboard" &&
+    args[1] === "guide" &&
+    args[2] === "--focus" &&
+    Boolean(args[3]);
   if (args.length === 0 || (args.length === 1 && isHelpFlag(args[0]))) {
     environment.stdout(usage);
     return 0;
@@ -81,6 +87,7 @@ export async function runCli(
   if (
     !taskUpdate &&
     !planCommand &&
+    !focusedGuide &&
     (args.length !== 2 || (args[0] !== "handover" && args[0] !== "onboard"))
   ) {
     environment.stderr(`Error: invalid command usage.\n\n${usage}`);
@@ -89,7 +96,12 @@ export async function runCli(
 
   try {
     if (args[0] === "onboard" && args[1] === "guide") {
-      environment.stdout(await generateOnboardingGuide(environment.cwd));
+      environment.stdout(
+        await generateOnboardingGuide(
+          environment.cwd,
+          focusedGuide ? { focus: args[3]! } : {},
+        ),
+      );
       return 0;
     }
 
@@ -277,7 +289,7 @@ const legacyHandoverCommands = new Set([
 const onboardUsage = `Explore a repository and track your onboarding
 
 Usage:
-  tk onboard guide
+  tk onboard guide [--focus <route-or-symbol>]
   tk onboard workspace
   tk onboard sync
   tk onboard plan

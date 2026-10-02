@@ -82,9 +82,9 @@ const findings: Finding[] = [
 describe("repository-only onboarding guide", () => {
   it("labels evidence and uncertainty without asserting an explained flow or working setup", () => {
     const guide = renderOnboardingGuide(model, findings);
-    expect(guide).toContain("## System overview");
-    expect(guide).toContain("## Architecture relationships");
-    expect(guide).toContain("## Candidate flows");
+    expect(guide).toContain("## System map");
+    expect(guide).toContain("**Architecture declarations and references**");
+    expect(guide).toContain("**Candidate routes**");
     expect(guide).toContain("**Bootstrap:** src/main.ts creates AppModule");
     expect(guide).toContain("DebtController → DebtService");
     expect(guide).toContain("**Route candidate:** POST /debt");
@@ -129,8 +129,8 @@ describe("repository-only onboarding guide", () => {
       },
     ]);
     const explained = guide
-      .split("## Explained flow\n")[1]!
-      .split("## Candidate flows")[0];
+      .split("## Connected journeys\n")[1]!
+      .split("## Change points")[0];
     expect(explained).toContain(
       "1. The handler directly calls the service method.",
     );
@@ -210,11 +210,9 @@ describe("repository-only onboarding guide", () => {
     }));
     const guide = renderOnboardingGuide(expanded, findings, explanations);
     const explained = guide
-      .split("## Explained flow\n")[1]!
-      .split("## Candidate flows")[0];
-    const candidate = guide
-      .split("## Candidate flows\n")[1]!
-      .split("## Setup and operations")[0];
+      .split("## Connected journeys\n")[1]!
+      .split("## Change points")[0];
+    const candidate = guide.split("**Candidate routes**\n")[1]!;
     expect(explained).toContain("### Debt add");
     expect(explained).toContain("### Debt consent");
     expect(explained).not.toContain("### Payment submit");
@@ -223,7 +221,7 @@ describe("repository-only onboarding guide", () => {
     const weakSecond = renderOnboardingGuide(expanded, findings, [
       explanations[0]!,
     ]);
-    expect(weakSecond.split("## Candidate flows\n")[1]).toContain(
+    expect(weakSecond.split("**Candidate routes**\n")[1]).toContain(
       "### Debt consent",
     );
   });
@@ -312,9 +310,7 @@ describe("repository-only onboarding guide", () => {
         evidence,
       })),
     ]);
-    const flows = guide
-      .split("## Candidate flows\n")[1]!
-      .split("## Setup and operations")[0];
+    const flows = guide.split("**Candidate routes**\n")[1]!;
     expect(flows).toContain("### Debt add");
     expect(flows).toContain("### Debt approve extension");
     expect(flows).toContain("### Payment submit");
@@ -324,9 +320,7 @@ describe("repository-only onboarding guide", () => {
       renderOnboardingGuide(
         { ...expanded, candidateFlows: [...expanded.candidateFlows].reverse() },
         findings,
-      )
-        .split("## Candidate flows\n")[1]!
-        .split("## Setup and operations")[0],
+      ).split("**Candidate routes**\n")[1]!,
     ).toBe(flows);
     expect(guide).toContain("Feature19Module");
     expect(guide).not.toMatch(/130 configuration references|UNRELATED_/u);
@@ -363,10 +357,10 @@ it("renders the port contradiction as a question and redacts configuration value
     },
   ]);
   const setup = guide
-    .split("## Setup and operations\n")[1]!
-    .split("## Unknowns")[0]!;
+    .split("## Run and observe\n")[1]!
+    .split("## Specific questions")[0]!;
   expect(setup).toContain(
-    "**Install:** `npm install` (documented in `README.md:10`)",
+    "**Install:** `npm install` (documented command at `README.md:10`; not run)",
   );
   expect(setup).toContain("Is PORT set to the mapped container port?");
   expect(setup).toContain("DB_PASSWORD");
@@ -681,9 +675,7 @@ it("ranks a source-rich route without using payment or consent vocabulary", () =
     richTrace("decide"),
     richTrace("verify-email"),
   ]);
-  const candidates = guide
-    .split("## Candidate flows\n")[1]!
-    .split("## Setup and operations")[0]!;
+  const candidates = guide.split("**Candidate routes**\n")[1]!;
   expect(candidates).toContain("### Order decide");
   expect(candidates).not.toContain("### Order create");
   expect(candidates).not.toContain("### Order verify-email");

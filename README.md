@@ -12,7 +12,7 @@ TransferKit is a local-first CLI for structured software ownership transfer. It 
 Software ownership transfers often fail because repository facts, operational context, and a new owner's learning progress are mixed together in documents that quickly become stale. TransferKit separates them:
 
 - **Handover** builds a shared ownership-transfer plan: what the next owner needs to learn, do, verify, and take over.
-- **Onboarding** creates a personal learning plan from repository evidence and available handover knowledge. Personal progress stays local and is not shared as project state.
+- **Onboarding** creates a shared repository-evidence guide and a separate personal learning workspace. Personal progress stays local and is not shared as project state.
 
 Its current ecosystem support focuses on Node.js and TypeScript backends, with deeper detection for NestJS, RabbitMQ, scheduled jobs, PostgreSQL/TypeORM, outbound HTTP integrations, environment configuration, Docker, and GitHub Actions.
 
@@ -36,6 +36,8 @@ tk handover plan
 tk handover sync
 tk handover status
 
+tk onboard guide
+tk onboard workspace
 tk onboard plan
 tk onboard status
 ```
@@ -47,7 +49,10 @@ To update personal onboarding progress:
 ```bash
 tk onboard task <task-id> in-progress
 tk onboard task <task-id> completed
+tk onboard sync
 ```
+
+`onboard guide` generates a shared `ONBOARDING.md` from repository evidence; `onboard guide --focus <route-or-symbol>` selects a supported entry to inspect. `onboard workspace` creates the personal Markdown checklist in `.transferkit.local/`. Edit its checkboxes, then run `onboard sync` and `onboard status`. The guide describes static source paths and declared setup commands; it does not run the application or verify outcomes.
 
 See the [workflow example](examples/workflow.md) for representative output and [getting started](docs/getting-started.md) for a fuller walkthrough.
 

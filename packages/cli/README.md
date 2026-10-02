@@ -31,13 +31,16 @@ To review a suggestion before the meeting, use `tk handover plan accept <item-id
 ## Personal onboarding
 
 ```bash
+tk onboard guide
+tk onboard workspace
 tk onboard plan
 tk onboard status
 tk onboard task <task-id> in-progress
 tk onboard task <task-id> completed
+tk onboard sync
 ```
 
-Personal progress stays in `.transferkit.local/`. Onboarding currently uses repository findings and any legacy handover knowledge; it does not use v3 Transfer completion.
+`guide` writes a shared, source-cited `ONBOARDING.md`; use `guide --focus <route-or-symbol>` to inspect a supported entry. `workspace` creates a personal Markdown checklist in `.transferkit.local/`. After editing its checkboxes, run `sync` to update personal progress, then `status`. Generated paths and commands are static evidence; application behavior and setup remain unverified until a person tries them. Onboarding does not use v3 Transfer completion.
 
 ## What's new in 0.2.0
 

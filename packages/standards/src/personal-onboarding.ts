@@ -7,6 +7,7 @@ export function personalOnboardingExercises(
   sections: ReadonlySet<string>,
   hasExplainedFlow: boolean,
   hasCandidateFlow: boolean,
+  guideSections?: ReadonlyMap<string, string>,
 ): PersonalOnboardingExercise[] {
   for (const required of [
     "system-overview",
@@ -20,14 +21,29 @@ export function personalOnboardingExercises(
   const flowSection = hasExplainedFlow
     ? "explained-flow"
     : hasCandidateFlow
-      ? "candidate-flows"
+      ? sections.has("candidate-flows")
+        ? "candidate-flows"
+        : "reference-appendix"
       : "unknowns";
+  const journeys = [
+    ...(guideSections?.get("explained-flow") ?? "").matchAll(
+      /^### Source journey: (.+)$/gmu,
+    ),
+  ]
+    .map((match) => match[1]!)
+    .slice(0, 2);
+  const concepts = [
+    ...(guideSections?.get("concepts") ?? "").matchAll(/^### ([^\n]+)$/gmu),
+  ]
+    .map((match) => match[1]!)
+    .slice(0, 3);
   return [
     {
       id: personalOnboardingExerciseIds[0],
       title: "Understand the system",
-      objective:
-        "Explain the entry point, major components, and supported relationships using the guide's evidence labels.",
+      objective: concepts.length
+        ? `Map ${concepts.join(", ")} from cited declarations to the entry point and selected journeys; label uncertain relationships.`
+        : "Explain the entry point, major components, and supported relationships using the guide's evidence labels.",
       guideSectionId: "system-overview",
       outcome:
         "Write a short system map and list any relationships that still need confirmation.",
@@ -35,12 +51,18 @@ export function personalOnboardingExercises(
     {
       id: personalOnboardingExerciseIds[1],
       title: "Trace a flow",
-      objective: hasExplainedFlow
-        ? "Check one explained static flow against its cited source and identify its branch and effect gaps."
-        : hasCandidateFlow
-          ? "Investigate one candidate route and record the source-backed steps you can establish."
-          : "Identify what route or call evidence is missing before a flow can be traced.",
+      objective:
+        journeys.length >= 2
+          ? `Explain ${journeys[0]} and ${journeys[1]} from cited source, including an alternate exit and the first unsupported edge in each.`
+          : journeys.length === 1
+            ? `Explain ${journeys[0]} from cited source, including an alternate exit and its first unsupported edge; identify what second path is missing.`
+            : hasExplainedFlow
+              ? "Check one explained static flow against its cited source and identify its branch and effect gaps."
+              : hasCandidateFlow
+                ? "Investigate one candidate route and record the source-backed steps you can establish."
+                : "Identify what route or call evidence is missing before a flow can be traced.",
       guideSectionId: flowSection,
+      ...(journeys.length ? { linkedJourneys: journeys } : {}),
       outcome:
         hasExplainedFlow || hasCandidateFlow
           ? "Record a concise trace with repository-relative citations and unresolved steps."
@@ -58,8 +80,9 @@ export function personalOnboardingExercises(
     {
       id: personalOnboardingExerciseIds[3],
       title: "Identify remaining ownership gaps",
-      objective:
-        "Review unknowns and separate questions for a knowledgeable person from questions needing runtime evidence.",
+      objective: journeys.length
+        ? `Find a likely change and test location for ${journeys[0]}; classify remaining questions as source, runtime, or person-dependent.`
+        : "Identify a likely change point if possible; classify remaining questions as source, runtime, or person-dependent.",
       guideSectionId: "unknowns",
       outcome:
         "List the remaining questions, their intended source, and any evidence gathered.",
