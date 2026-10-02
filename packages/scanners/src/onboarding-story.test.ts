@@ -37,6 +37,12 @@ describe("cited onboarding story inventory", () => {
       file: "src/cli.js",
       line: 1,
     });
+    expect(inventory.observations).toContainEqual(
+      expect.objectContaining({
+        text: expect.stringContaining("Documented alternate: A missing path"),
+        evidence: [{ file: "README.md", line: 5 }],
+      }),
+    );
   });
 
   it("finds a documented Python entry while leaving unsupported internals unknown", async () => {

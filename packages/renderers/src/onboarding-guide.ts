@@ -9,10 +9,13 @@ import type {
   OnboardingQueueContinuation,
   OnboardingRepositoryNote,
   OnboardingScheduledConcept,
+  OnboardingStoryInventory,
+  OnboardingStorySelection,
   ProjectModel,
   RouteTrace,
 } from "@transferkit/core";
 import { sanitizeHandoverValue } from "./handover-package.js";
+import { renderHumanOnboardingGuide } from "./onboarding-human-story.js";
 
 const genericIntegrations = new Set([
   "axios",
@@ -37,6 +40,8 @@ export interface OnboardingGuideOptions {
   displayFlowIds?: readonly string[];
   rejected?: readonly { symbol: string; reason: string }[];
   repositoryNotes?: readonly OnboardingRepositoryNote[];
+  storyInventory?: OnboardingStoryInventory;
+  storySelection?: OnboardingStorySelection;
 }
 
 export function renderOnboardingGuide(
@@ -744,13 +749,18 @@ export function renderOnboardingGuide(
     "- **Unknown:** What are the production topology and operational owners? Ask a knowledgeable person.",
     "",
   );
-  return arrangeGuide(
-    `${lines
-      .join("\n")
-      .replace(/\n{3,}/gu, "\n\n")
-      .trimEnd()}\n`,
-    journeys,
-  );
+  const source = `${lines
+    .join("\n")
+    .replace(/\n{3,}/gu, "\n\n")
+    .trimEnd()}\n`;
+  return options.storyInventory && options.storySelection
+    ? renderHumanOnboardingGuide(
+        source,
+        options.storyInventory,
+        options.storySelection,
+        repositoryNotes,
+      )
+    : arrangeGuide(source, journeys);
 }
 
 function arrangeGuide(

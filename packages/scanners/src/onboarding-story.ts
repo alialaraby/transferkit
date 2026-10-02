@@ -36,6 +36,37 @@ export async function discoverOnboardingStoryEvidence(
   for (const file of documentFiles) {
     const source = await optionalText(join(directory, file));
     if (!source) continue;
+    const genericDocument = starter.test(source.slice(0, 1200));
+    for (const match of source.matchAll(
+      /`((?:npm (?:run )?(?:start|test)(?:\s+--)?|python3?\s+[\w./-]+\.py)(?:\s+[^`\n]{1,90})?)`/gu,
+    )) {
+      const command = match[1]!.trim();
+      if (genericDocument || sensitive.test(command)) continue;
+      claims.push({
+        kind: "observation",
+        text: `Documented command: ${command}. It has not been run by TransferKit.`,
+        basis: "repository-statement",
+        evidence: [
+          { file, line: source.slice(0, match.index).split(/\r?\n/u).length },
+        ],
+      });
+    }
+    if (!genericDocument)
+      for (const match of source.matchAll(
+        /(?:^|[.!?]\s+)([^.!?\n]{0,180}\b(?:missing|invalid|rejected|error|nonzero|404)\b[^.!?\n]{0,180}[.!?])/gimu,
+      )) {
+        const statement = match[1]!.trim();
+        if (sensitive.test(statement)) continue;
+        const line = source
+          .slice(0, match.index! + match[0].indexOf(match[1]!))
+          .split(/\r?\n/u).length;
+        claims.push({
+          kind: "observation",
+          text: `Documented alternate: ${statement}`,
+          basis: "repository-statement",
+          evidence: [{ file, line }],
+        });
+      }
     for (const match of source.matchAll(/\bpython3?\s+([\w./-]+\.py)\b/gu)) {
       const target = match[1]!;
       if (!(await localFile(directory, target))) continue;
@@ -110,6 +141,31 @@ export async function discoverOnboardingStoryEvidence(
   if (packageSource) {
     try {
       const pkg = JSON.parse(packageSource) as Record<string, unknown>;
+      const engines = stringMap(pkg.engines);
+      if (engines.node)
+        claims.push({
+          kind: "observation",
+          text: `Declared runtime: Node.js ${engines.node}.`,
+          basis: "code-observation",
+          evidence: [
+            { file: "package.json", line: propertyLine(packageSource, "node") },
+          ],
+        });
+      for (const [name, version] of Object.entries(stringMap(pkg.dependencies))
+        .filter(([name]) =>
+          /^(?:@nestjs\/core|@nestjs\/typeorm|@nestjs\/bullmq|express|fastify|next|react|typeorm|pg|prisma|bullmq|amqplib|commander|yargs)$/u.test(
+            name,
+          ),
+        )
+        .slice(0, 8))
+        claims.push({
+          kind: "observation",
+          text: `Declared runtime dependency: ${name} ${version}.`,
+          basis: "code-observation",
+          evidence: [
+            { file: "package.json", line: propertyLine(packageSource, name) },
+          ],
+        });
       if (
         typeof pkg.description === "string" &&
         pkg.description.length >= 24 &&

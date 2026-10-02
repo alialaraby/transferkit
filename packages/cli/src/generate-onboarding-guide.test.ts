@@ -20,6 +20,30 @@ async function guide(directory: string): Promise<string> {
 }
 
 describe("shared guide regeneration", () => {
+  it("keeps a documented CLI input and failure path in the reading guide", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "tk-guide-cli-story-"));
+    await cp(
+      join(
+        dirname(fileURLToPath(import.meta.url)),
+        "../../../fixtures/onboarding-human-cli",
+      ),
+      directory,
+      { recursive: true },
+    );
+    await generateOnboardingGuide(directory);
+    const generated = await guide(directory);
+    expect(generated).toContain(
+      "**Alternate exit:** Documented alternate: A missing path",
+    );
+    expect(generated).toContain("npm start -- events.jsonl");
+    expect(generated).toContain(
+      "**Safe first investigation:** Open [src/cli.js:1]",
+    );
+    expect(generated).not.toContain(
+      "Consider npm run start after prerequisites",
+    );
+  });
+
   it("renders distinct cited journeys and their related TypeORM concepts without asserting completed writes", async () => {
     const directory = await mkdtemp(join(tmpdir(), "tk-guide-deep-"));
     await cp(
@@ -63,6 +87,10 @@ describe("shared guide regeneration", () => {
     );
     expect(generated).toContain('<a id="journey-ordercontroller-');
     expect(generated).toContain("### Source journey: LimitsController.check");
+    expect(generated).toContain("**Safe first investigation:**");
+    expect(generated).toContain("**Trigger and input:**");
+    expect(generated).toContain("**Alternate exit:**");
+    expect(generated).not.toContain("**Why read this:** OrderEntity appears");
     expect(
       generated.match(
         /### Source journey: OrderController\.(?:preview|submit)/gu,

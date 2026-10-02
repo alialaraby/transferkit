@@ -131,6 +131,8 @@ export async function generateOnboardingGuide(
           reason: item.reason,
         })),
         repositoryNotes,
+        storyInventory: storyInventory!,
+        storySelection,
       },
     ),
   );

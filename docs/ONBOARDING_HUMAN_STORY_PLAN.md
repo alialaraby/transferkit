@@ -1,6 +1,6 @@
 # Human-first onboarding guide enhancement plan
 
-**Status:** Phases 0–2 complete; Phases 3–5 pending. The [Phase 0 acceptance baseline](ONBOARDING_HUMAN_STORY_PHASE0_BASELINE.md) records cross-repository answer keys and measurements. Phase 1 adds a typed, cited story inventory; Phase 2 selects bounded story chapters and classifies supported or unproven connections. Human-first guide rendering remains for Phase 3. This follows the existing [repository-only deep guide work](ONBOARDING_DEEP_GUIDE_PLAN.md). Its source traces, evidence rules, personal workspace, and safe regeneration remain the foundation. Milestone 9's real unfamiliar-engineer assessment is still open.
+**Status:** Phases 0–3 complete; Phases 4–5 pending. The [Phase 0 acceptance baseline](ONBOARDING_HUMAN_STORY_PHASE0_BASELINE.md) records cross-repository answer keys and measurements. Phase 1 adds a typed, cited story inventory; Phase 2 selects bounded story chapters and classifies supported or unproven connections; Phase 3 renders a human reading path. This follows the existing [repository-only deep guide work](ONBOARDING_DEEP_GUIDE_PLAN.md). Its source traces, evidence rules, personal workspace, and safe regeneration remain the foundation. Milestone 9's real unfamiliar-engineer assessment is still open.
 
 ## Why this change is needed
 
@@ -64,13 +64,15 @@ The same questions apply to a service, CLI, library, frontend, worker, or data j
 
 ### Phase 3 — Render the human reading path
 
-- [ ] Introduce a short “What this repo does” and “How to read it” opening from Phase 1 claims, with visible inference/unknown labels where needed.
-- [ ] Replace the opening entity inventory with a three-to-five-term glossary: term, code role, supported meaning, and why the newcomer will encounter it. Move relation and field lists to the appendix.
-- [ ] Render each selected story as **why this path matters → trigger/input → decision → state or output → alternate exit → external boundary → where to change/test**, using brief prose and nearby grouped citations. Keep the raw event trace available in collapsed details.
-- [ ] Add a task-to-file/test map and one safe first investigation chosen from actual code and test evidence. Do not say tests are absent merely because the current trace did not discover them.
-- [ ] Keep setup specific: engine/version and meaningful declared dependencies, documented versus verified commands, safe observation, and blockers. Preserve the current guide markers, snapshot reconciliation, owner sections, and all personal workspace data.
+- [x] Introduce a short “What this repo does” and “How to read it” opening from Phase 1 claims, with visible inference/unknown labels where needed.
+- [x] Replace the opening entity inventory with a three-to-five-term glossary: term, code role, supported meaning, and why the newcomer will encounter it. Move relation and field lists to the appendix.
+- [x] Render each selected story as **why this path matters → trigger/input → decision → state or output → alternate exit → external boundary → where to change/test**, using brief prose and nearby grouped citations. Keep the raw event trace available in collapsed details.
+- [x] Add a task-to-file/test map and one safe first investigation chosen from actual code and test evidence. Do not say tests are absent merely because the current trace did not discover them.
+- [x] Keep setup specific: engine/version and meaningful declared dependencies, documented versus verified commands, safe observation, and blockers. Preserve the current guide markers, snapshot reconciliation, owner sections, and all personal workspace data.
 
 **Gate:** A reviewer answers the five Phase 0 questions from the opening and stories without reading the appendix. Every behavioral sentence is supported by its cited code or clearly labeled as a repository/owner statement or inference. No human edit disappears on regeneration.
+
+**Phase 3 check:** Seven disposable repository cases generated with no broken source links; the featured B2C and Debtbox entries, CLI input/error path, sparse Python fallback, and plain Node setup were inspected. B2C generation was 6.607 s / 718.3 MiB peak RSS; Debtbox was 1.333 s / 308.2 MiB. The full 287-test suite, typecheck, lint, and format check pass, including guide regeneration and owner-note preservation. The generated guides and measurements are reproducible at `/tmp/tk-human-phase3-verified/` with the Phase 0 regression command. This is source-based review, not the independent newcomer assessment in Phase 5.
 
 ### Phase 4 — Align personal learning with the story
 
@@ -91,4 +93,4 @@ The same questions apply to a service, CLI, library, frontend, worker, or data j
 
 This plan does not add hosted services, implicit AI, runtime execution, new language-specific deep tracers, or a business ontology. A non-TypeScript repository can still get a useful overview from its own documentation, manifests, public entry points, tests, and artifacts; unsupported inner behavior remains a cited gap. Optional AI prose may be considered later only as an opt-in rewrite of vetted claims, never as a source of new facts.
 
-Phases 0–2 are complete. The next implementation request can start **Phase 3 only**; later phases depend on its human reading path, so the B2C example cannot quietly become the product template.
+Phases 0–3 are complete. The next implementation request can start **Phase 4 only**; the B2C example remains a reviewer reference, not a product template.

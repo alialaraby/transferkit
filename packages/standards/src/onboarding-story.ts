@@ -60,7 +60,7 @@ export function selectOnboardingStoryInventory(
     artifacts,
     outputs,
     boundaries: selected("boundary", 8),
-    observations: selected("observation", 8),
+    observations: selected("observation", 16),
     terms,
     rejectedDescriptions: evidence.rejectedDescriptions,
     unknowns,
