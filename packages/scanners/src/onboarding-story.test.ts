@@ -4,7 +4,6 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import type { OnboardingConceptEvidence } from "@transferkit/core";
-import { selectOnboardingStoryInventory } from "@transferkit/standards";
 
 import { discoverOnboardingStoryEvidence } from "./onboarding-story.js";
 import { scanOnboardingRepository } from "./index.js";
@@ -17,27 +16,41 @@ const empty: OnboardingConceptEvidence = {
   injections: [],
 };
 
-describe("cited onboarding story inventory", () => {
+describe("cited onboarding story evidence", () => {
   it("identifies a CLI command, documented input and output without HTTP assumptions", async () => {
     const evidence = await discoverOnboardingStoryEvidence(
       join(root, "onboarding-human-cli"),
       [],
       empty,
     );
-    const inventory = selectOnboardingStoryInventory(evidence);
-    expect(inventory.purpose?.text).toContain("event file");
-    expect(inventory.entries[0]?.name).toBe("event-count");
+    const claims = evidence.claims;
+    expect(claims.find((claim) => claim.kind === "purpose")?.text).toContain(
+      "event file",
+    );
+    expect(claims.find((claim) => claim.kind === "entry")?.name).toBe(
+      "event-count",
+    );
     expect(
-      inventory.artifacts.some((claim) => claim.text.includes("event file")),
+      claims.some(
+        (claim) =>
+          claim.kind === "artifact" && claim.text.includes("event file"),
+      ),
     ).toBe(true);
     expect(
-      inventory.outputs.some((claim) => claim.text.includes("prints a count")),
+      claims.some(
+        (claim) =>
+          claim.kind === "output" && claim.text.includes("prints a count"),
+      ),
     ).toBe(true);
-    expect(inventory.entries[0]?.evidence).toContainEqual({
+    expect(
+      claims.find((claim) => claim.kind === "entry")?.evidence,
+    ).toContainEqual({
       file: "src/cli.js",
       line: 1,
     });
-    expect(inventory.observations).toContainEqual(
+    expect(
+      claims.filter((claim) => claim.kind === "observation"),
+    ).toContainEqual(
       expect.objectContaining({
         text: expect.stringContaining("Documented alternate: A missing path"),
         evidence: [{ file: "README.md", line: 5 }],
@@ -51,15 +64,23 @@ describe("cited onboarding story inventory", () => {
       [],
       empty,
     );
-    const inventory = selectOnboardingStoryInventory(evidence);
-    expect(inventory.purpose?.text).toContain("compares item counts");
-    expect(inventory.entries.map((claim) => claim.name)).toContain(
-      "compare.py",
-    );
     expect(
-      inventory.outputs.some((claim) => claim.text.includes("standard output")),
+      evidence.claims.find((claim) => claim.kind === "purpose")?.text,
+    ).toContain("compares item counts");
+    expect(
+      evidence.claims
+        .filter((claim) => claim.kind === "entry")
+        .map((claim) => claim.name),
+    ).toContain("compare.py");
+    expect(
+      evidence.claims.some(
+        (claim) =>
+          claim.kind === "output" && claim.text.includes("standard output"),
+      ),
     ).toBe(true);
-    expect(inventory.boundaries).toEqual([]);
+    expect(
+      evidence.claims.filter((claim) => claim.kind === "boundary"),
+    ).toEqual([]);
   });
 
   it("uses a plain Node service description without inventing persistent state", async () => {
@@ -68,15 +89,24 @@ describe("cited onboarding story inventory", () => {
       [],
       empty,
     );
-    const inventory = selectOnboardingStoryInventory(evidence);
-    expect(inventory.roles[0]?.text).toContain("service");
     expect(
-      inventory.entries.some((claim) => claim.text.includes("src/server.js")),
+      evidence.claims.find((claim) => claim.kind === "role")?.text,
+    ).toContain("service");
+    expect(
+      evidence.claims.some(
+        (claim) =>
+          claim.kind === "entry" && claim.text.includes("src/server.js"),
+      ),
     ).toBe(true);
     expect(
-      inventory.outputs.some((claim) => claim.text.includes("health check")),
+      evidence.claims.some(
+        (claim) =>
+          claim.kind === "output" && claim.text.includes("health check"),
+      ),
     ).toBe(true);
-    expect(inventory.boundaries).toEqual([]);
+    expect(
+      evidence.claims.filter((claim) => claim.kind === "boundary"),
+    ).toEqual([]);
   });
 
   it("rejects a Nest starter purpose and keeps route, schedule and entity roles bounded", async () => {
@@ -87,24 +117,28 @@ describe("cited onboarding story inventory", () => {
       scanned.findings,
       scanned.concepts,
     );
-    const inventory = selectOnboardingStoryInventory(evidence);
-    expect(inventory.purpose).toBeUndefined();
+    expect(evidence.claims.some((claim) => claim.kind === "purpose")).toBe(
+      false,
+    );
     expect(
-      inventory.rejectedDescriptions.some(
+      evidence.rejectedDescriptions.some(
         (item) => item.reason === "generic starter text",
       ),
     ).toBe(true);
     expect(
-      inventory.entries.some(
-        (claim) => claim.name === "ParcelController.dispatch",
+      evidence.claims.some(
+        (claim) =>
+          claim.kind === "entry" && claim.name === "ParcelController.dispatch",
       ),
     ).toBe(true);
     expect(
-      inventory.entries.some((claim) => claim.text.includes("scheduled")),
+      evidence.claims.some(
+        (claim) => claim.kind === "entry" && claim.text.includes("scheduled"),
+      ),
     ).toBe(true);
-    expect(inventory.terms.some((term) => term.name === "Parcel")).toBe(true);
+    expect(evidence.terms.some((term) => term.name === "Parcel")).toBe(true);
     expect(
-      inventory.terms.find((term) => term.name === "Parcel")?.meaning,
+      evidence.terms.find((term) => term.name === "Parcel")?.meaning,
     ).toBeUndefined();
   });
 });
