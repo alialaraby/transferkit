@@ -1,0 +1,11 @@
+{
+  "name": "parcel-workflow-fixture",
+  "private": true,
+  "dependencies": {
+    "@nestjs/common": "^10.0.0",
+    "@nestjs/bullmq": "^10.0.0",
+    "@nestjs/schedule": "^4.0.0",
+    "bullmq": "^5.0.0",
+    "typeorm": "^0.3.0"
+  }
+}

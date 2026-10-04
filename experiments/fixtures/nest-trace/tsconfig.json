@@ -1,0 +1,9 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "experimentalDecorators": true,
+    "noEmit": true
+  },
+  "include": ["*.ts"]
+}

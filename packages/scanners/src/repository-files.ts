@@ -14,6 +14,7 @@ export type RepositoryFileFinding = Finding<
   | "setup.service"
   | "setup.port"
   | "setup.requirement"
+  | "setup.variable"
 >;
 
 export async function discoverRepositoryFiles(
@@ -34,6 +35,22 @@ export async function discoverRepositoryFiles(
             description: "Committed environment template is present",
           },
         ],
+      });
+      const template = await optionalText(join(repositoryDirectory, name));
+      template?.split(/\r?\n/u).forEach((line, index) => {
+        const variable = /^\s*(?:export\s+)?([A-Z][A-Z0-9_]*)\s*=/u.exec(
+          line,
+        )?.[1];
+        if (variable)
+          findings.push(
+            setupFinding(
+              "setup.variable",
+              `${name}:${variable}`,
+              { name: variable },
+              name,
+              index + 1,
+            ),
+          );
       });
     }
     if (
@@ -142,6 +159,9 @@ async function discoverSetupFiles(
           "start:prod",
           "test",
           "test:e2e",
+          ...Object.keys(scripts)
+            .filter((name) => /(?:migrat|seed)/iu.test(name))
+            .slice(0, 8),
         ]) {
           if (typeof (scripts as Record<string, unknown>)[name] === "string")
             findings.push(
@@ -153,11 +173,15 @@ async function discoverSetupFiles(
                   purpose:
                     name === "build"
                       ? "build"
-                      : name.startsWith("test")
-                        ? "test"
-                        : name === "start:prod"
-                          ? "compiled-start"
-                          : "start",
+                      : /migrat/iu.test(name)
+                        ? "migration"
+                        : /seed/iu.test(name)
+                          ? "seed"
+                          : name.startsWith("test")
+                            ? "test"
+                            : name === "start:prod"
+                              ? "compiled-start"
+                              : "start",
                 },
                 "package.json",
                 propertyLine(pkg, name),
@@ -171,6 +195,10 @@ async function discoverSetupFiles(
   }
   const readme = await optionalText(join(directory, "README.md"));
   if (readme) {
+    const genericReadme =
+      /(?:nest(?:js)? (?:framework|starter)|starter repository|boilerplate)/iu.test(
+        readme.slice(0, 1200),
+      );
     let section = "";
     let fenced = false;
     readme.split(/\r?\n/u).forEach((line, index) => {
@@ -203,7 +231,7 @@ async function discoverSetupFiles(
         setupFinding(
           "setup.command",
           `readme:${index + 1}`,
-          { command, purpose },
+          { command, purpose, ...(genericReadme ? { generic: "yes" } : {}) },
           "README.md",
           index + 1,
         ),

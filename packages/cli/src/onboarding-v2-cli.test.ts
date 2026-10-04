@@ -66,7 +66,7 @@ describe("onboard v2 CLI display", () => {
     expect(positions.every((position) => position >= 0)).toBe(true);
     expect(positions).toEqual([...positions].sort((a, b) => a - b));
     expect(plan.output).toContain("Understand the system [completed]");
-    expect(plan.output).toContain("Goal: Write a short system map");
+    expect(plan.output).toContain("Goal: Write a short mental model");
     expect(plan.output).toContain("Read: ONBOARDING.md#system-overview");
     expect(plan.output).not.toContain("Review scheduled job");
   });

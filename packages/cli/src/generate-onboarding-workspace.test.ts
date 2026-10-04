@@ -1,9 +1,17 @@
-import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
+import { cp, mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { generateOnboardingWorkspace } from "./generate-onboarding-workspace.js";
+import { generateOnboardingGuide } from "./generate-onboarding-guide.js";
+import {
+  setPersonalExerciseStatus,
+  syncPersonalOnboarding,
+} from "./personal-onboarding-sync.js";
+import { runCli } from "./index.js";
 
 const sections = [
   ["system-overview", "## System overview\nObserved entry point."],
@@ -66,9 +74,12 @@ describe("personal onboarding workspace", () => {
     );
     await generateOnboardingWorkspace(directory);
     const output = await workspace(directory);
-    expect(output).toContain("Check one explained static flow");
+    expect(output).toContain("Check one connected journey");
     expect(output).toContain(
       "documented commands are runtime unverified until tried",
+    );
+    expect(output).toContain(
+      "| Date | Exact command or safe check | Observed result | Blocker |",
     );
     expect(output).not.toContain("legacy");
     expect(
@@ -91,6 +102,136 @@ describe("personal onboarding workspace", () => {
       /already exists; it was left untouched/u,
     );
     expect(await workspace(directory)).toBe(edited);
+  });
+
+  it("preserves a dated personal attempt observation through sync", async () => {
+    const directory = await fixture();
+    await generateOnboardingWorkspace(directory);
+    const recorded = (await workspace(directory)).replace(
+      "|  |  |  |  |",
+      "| 2026-10-01 | npm run start | Connection refused | Database unavailable |",
+    );
+    await writeFile(
+      join(directory, ".transferkit.local/ONBOARDING.md"),
+      recorded,
+    );
+    await syncPersonalOnboarding(directory);
+    expect(await workspace(directory)).toContain(
+      "| 2026-10-01 | npm run start | Connection refused | Database unavailable |",
+    );
+  });
+
+  it("keeps stable progress and notes while flagging a disappeared guide journey", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "tk-workspace-stale-"));
+    await cp(
+      join(
+        dirname(fileURLToPath(import.meta.url)),
+        "../../../fixtures/onboarding-phase4",
+      ),
+      directory,
+      { recursive: true },
+    );
+    await generateOnboardingGuide(directory);
+    await generateOnboardingWorkspace(directory);
+    const personalFile = join(directory, ".transferkit.local/ONBOARDING.md");
+    const original = await workspace(directory);
+    expect(original).toContain(
+      "ParcelController.dispatch and ParcelJobs.inspect",
+    );
+    await writeFile(personalFile, `${original}\nMy own source notes.\n`);
+    await setPersonalExerciseStatus(directory, "v2:trace-flow", "completed");
+    const retained = await workspace(directory);
+    const planOutputs: string[] = [];
+    expect(
+      await runCli(["onboard", "plan"], {
+        cwd: directory,
+        stdout: (value) => planOutputs.push(value),
+        stderr: () => undefined,
+      }),
+    ).toBe(0);
+    expect(planOutputs.join("\n")).toContain(
+      "Focus: Explain ParcelController.dispatch and ParcelJobs.inspect",
+    );
+    const shared = await readFile(join(directory, "ONBOARDING.md"), "utf8");
+    await writeFile(
+      join(directory, "ONBOARDING.md"),
+      shared.replaceAll(
+        "### Source journey: ParcelJobs.inspect",
+        "### Source journey: ParcelJobs.changed",
+      ),
+    );
+    const outputs: string[] = [];
+    expect(
+      await runCli(["onboard", "status"], {
+        cwd: directory,
+        stdout: (value) => outputs.push(value),
+        stderr: () => undefined,
+      }),
+    ).toBe(0);
+    expect(outputs.join("\n")).toContain(
+      "Stale guide link: ParcelJobs.inspect",
+    );
+    expect(outputs.join("\n")).toContain("Trace a flow: completed");
+    expect(await workspace(directory)).toBe(retained);
+    expect(retained).toContain("My own source notes.");
+  });
+
+  it("links a documented CLI entry and flags it when guide selection changes", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "tk-workspace-cli-stale-"));
+    await cp(
+      join(
+        dirname(fileURLToPath(import.meta.url)),
+        "../../../fixtures/onboarding-human-cli",
+      ),
+      directory,
+      { recursive: true },
+    );
+    await generateOnboardingGuide(directory);
+    await generateOnboardingWorkspace(directory);
+    const personalFile = join(directory, ".transferkit.local/ONBOARDING.md");
+    const initial = await workspace(directory);
+    expect(initial).toContain("<!-- tk:onboard:linked-journey event-count -->");
+    expect(initial).toContain("../ONBOARDING.md#change-points");
+    expect(initial).toContain("Read Start here and System map");
+    await writeFile(
+      personalFile,
+      `${initial
+        .replace(
+          "_Add questions for a person or a runtime check._",
+          "Who owns event validation?",
+        )
+        .replace(
+          "_Add file references, commands tried, and results observed._",
+          "src/cli.js:1 — inspect input handling.",
+        )}\nMy own input observation.\n`,
+    );
+    await setPersonalExerciseStatus(directory, "v2:trace-flow", "completed");
+    const retained = await workspace(directory);
+    const stateFile = join(directory, ".transferkit.local/onboarding-v2.json");
+    const state = await readFile(stateFile, "utf8");
+    const shared = await readFile(join(directory, "ONBOARDING.md"), "utf8");
+    await writeFile(
+      join(directory, "ONBOARDING.md"),
+      shared.replace(
+        "### Entry to inspect: event-count",
+        "### Entry to inspect: other-command",
+      ),
+    );
+    const outputs: string[] = [];
+    expect(
+      await runCli(["onboard", "status"], {
+        cwd: directory,
+        stdout: (value) => outputs.push(value),
+        stderr: () => undefined,
+      }),
+    ).toBe(0);
+    expect(outputs.join("\n")).toContain("Stale guide link: event-count");
+    expect(outputs.join("\n")).toContain("Trace a flow: completed");
+    expect(await workspace(directory)).toBe(retained);
+    expect(retained).toContain("My own input observation.");
+    expect(retained).toContain("Who owns event validation?");
+    expect(retained).toContain("src/cli.js:1 — inspect input handling.");
+    expect(await readFile(stateFile, "utf8")).toBe(state);
   });
 
   it("requires a marked shared guide", async () => {

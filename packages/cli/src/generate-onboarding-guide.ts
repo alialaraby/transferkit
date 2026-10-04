@@ -2,10 +2,24 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
+import type {
+  OnboardingSelectedConcept,
+  OnboardingStoryInventory,
+} from "@transferkit/core";
 import { renderOnboardingGuide } from "@transferkit/renderers";
-import { scanRepository } from "@transferkit/scanners";
+import {
+  discoverOnboardingRepositoryNotes,
+  discoverOnboardingStoryEvidence,
+  scanOnboardingRepository,
+} from "@transferkit/scanners";
 import {
   explainCandidateFlows,
+  preselectOnboardingEntries,
+  selectOnboardingContinuations,
+  selectOnboardingStories,
+  selectOnboardingStoryInventory,
+  selectScheduledConcepts,
+  selectOnboardingConcepts,
   understandProject,
 } from "@transferkit/standards";
 
@@ -19,6 +33,7 @@ type Block = { id: string; start: number; end: number; text: string };
 
 export async function generateOnboardingGuide(
   directory: string,
+  options: { focus?: string } = {},
 ): Promise<string> {
   const file = join(directory, "ONBOARDING.md");
   const existing = await optionalRead(file);
@@ -32,13 +47,93 @@ export async function generateOnboardingGuide(
       "ONBOARDING.md has TransferKit markers but no valid generation snapshot; it was left untouched. Restore the snapshot before regenerating.",
     );
 
-  const findings = await scanRepository(directory);
+  let focusSymbol: string | undefined;
+  let storyInventory: OnboardingStoryInventory | undefined;
+  const { findings, traces, concepts, queues, scheduledCalls } =
+    await scanOnboardingRepository(directory, async (scanned, context) => {
+      storyInventory = selectOnboardingStoryInventory(
+        await discoverOnboardingStoryEvidence(
+          directory,
+          scanned,
+          context.concepts,
+        ),
+      );
+      const preliminary = preselectOnboardingEntries(
+        scanned,
+        context.queues,
+        context.scheduledCalls,
+        options.focus,
+        storyInventory,
+      );
+      focusSymbol = preliminary.focusSymbol;
+      return preliminary.entries;
+    });
   const model = understandProject(findings);
+  const storySelection = selectOnboardingStories(
+    traces,
+    storyInventory!,
+    concepts,
+    queues,
+    focusSymbol,
+  );
+  const selected = storySelection.chapters.flatMap((chapter) =>
+    chapter.trace ? [{ trace: chapter.trace, reason: chapter.reason }] : [],
+  );
+  const selectedConcepts = mergeConcepts(
+    selected.flatMap((item) => selectOnboardingConcepts(item.trace, concepts)),
+  );
+  const repositoryNotes = await discoverOnboardingRepositoryNotes(
+    directory,
+    selected.map((item) => item.trace),
+    findings,
+  );
+  const displayedSymbols = new Set([
+    ...(focusSymbol ? [focusSymbol] : []),
+    ...selected.map((item) => item.trace.entry.symbol),
+    ...storySelection.rejected.map((item) => item.entry),
+  ]);
+  const displayFlowIds = model.candidateFlows
+    .filter((flow) =>
+      flow.sourceFindingIds.some((id) =>
+        findings.some((finding) => {
+          if (finding.id !== id || finding.kind !== "application.route")
+            return false;
+          const data = finding.data as Record<string, unknown>;
+          return displayedSymbols.has(`${data.controller}.${data.method}`);
+        }),
+      ),
+    )
+    .map((flow) => flow.id);
+  if (!displayFlowIds.length)
+    displayFlowIds.push(
+      ...model.candidateFlows.slice(0, 3).map((flow) => flow.id),
+    );
   const proposed = markSections(
     renderOnboardingGuide(
       model,
       findings,
       explainCandidateFlows(model, findings),
+      {
+        journeys: selected.map((item) => ({
+          trace: item.trace,
+          reason: item.reason,
+          continuations: selectOnboardingContinuations(item.trace, queues),
+        })),
+        concepts: selectedConcepts,
+        scheduled: selectScheduledConcepts(
+          scheduledCalls,
+          concepts,
+          selectedConcepts,
+        ),
+        displayFlowIds,
+        rejected: storySelection.rejected.map((item) => ({
+          symbol: item.entry,
+          reason: item.reason,
+        })),
+        repositoryNotes,
+        storyInventory: storyInventory!,
+        storySelection,
+      },
     ),
   );
   const generated = parseBlocks(proposed);
@@ -101,9 +196,17 @@ export async function generateOnboardingGuide(
       merged =
         merged.slice(0, block.start) + replacement + merged.slice(block.end);
   }
-  for (const block of generated)
-    if (!currentIds.has(block.id))
-      merged = `${merged.trimEnd()}\n\n${block.text}\n`;
+  for (const [index, block] of generated.entries())
+    if (!currentIds.has(block.id)) {
+      const currentBlocks = parseBlocks(merged);
+      const following = generated
+        .slice(index + 1)
+        .map((item) => currentBlocks.find((current) => current.id === item.id))
+        .find((item) => item !== undefined);
+      merged = following
+        ? `${merged.slice(0, following.start)}${block.text}\n\n${merged.slice(following.start)}`
+        : `${merged.trimEnd()}\n\n${block.text}\n`;
+    }
   if (merged.startsWith(oldGeneratedIntroduction))
     merged =
       proposed.slice(0, generated[0]!.start) +
@@ -129,16 +232,50 @@ export async function generateOnboardingGuide(
   return "Regenerated ONBOARDING.md; human text was preserved. Runtime behavior remains unverified.";
 }
 
+function mergeConcepts(
+  items: OnboardingSelectedConcept[],
+): OnboardingSelectedConcept[] {
+  const result = new Map<string, OnboardingSelectedConcept>();
+  for (const item of items) {
+    const key = `${item.entity.name}:${item.entity.declaration.file}:${item.entity.declaration.line}`;
+    const prior = result.get(key);
+    if (!prior)
+      result.set(key, { entity: item.entity, calls: [...item.calls] });
+    else
+      for (const call of item.calls)
+        if (
+          !prior.calls.some(
+            (value) =>
+              value.at.file === call.at.file && value.at.line === call.at.line,
+          )
+        )
+          prior.calls.push(call);
+  }
+  return [...result.values()].sort(
+    (a, b) =>
+      b.calls.length - a.calls.length ||
+      a.entity.name.localeCompare(b.entity.name),
+  );
+}
+
 function markSections(source: string): string {
   const headers = [...source.matchAll(/^## (.+)$/gmu)];
   if (!headers.length) throw new Error("Generated guide has no sections");
+  const stableIds: Record<string, string> = {
+    "System map": "system-overview",
+    "Connected journeys": "explained-flow",
+    "Run and observe": "setup-and-operations",
+    "Specific questions": "unknowns",
+  };
   let marked = source.slice(0, headers[0]!.index);
   for (let index = 0; index < headers.length; index++) {
     const header = headers[index]!;
-    const id = header[1]!
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/gu, "-")
-      .replace(/^-|-$/gu, "");
+    const id =
+      stableIds[header[1]!] ??
+      header[1]!
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/gu, "-")
+        .replace(/^-|-$/gu, "");
     const body = source
       .slice(header.index, headers[index + 1]?.index ?? source.length)
       .trimEnd();

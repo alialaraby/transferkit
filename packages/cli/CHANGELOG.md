@@ -1,5 +1,22 @@
 # Release notes
 
+## 0.3.0 — Human-first onboarding (release candidate)
+
+### What's new
+
+- The shared `ONBOARDING.md` now starts with a source-backed repository overview, a compact glossary, selected entry stories, change and test points, and setup observations. Detailed traces remain in a collapsed appendix.
+- Onboarding stories distinguish separate entries, documented statements, static trace observations, and unverified runtime outcomes. They do not force an automatic sequence between paths that merely touch the same record.
+- Personal `v2:` exercises now follow the guide's mental model, stories, change map, and safe observation. Existing IDs, progress, notes, questions, and evidence remain intact; changed guide selections can surface stale links.
+- Interactive terminal commands show delayed progress during repository scans and guide generation. Piped stdout and stderr remain free of spinner frames.
+- Handover v3's structured plan, checklist, evidence review, and Markdown sync remain available.
+
+### Compatibility and limits
+
+- `tk handover plan` already performs a scan; running `tk handover scan` immediately before it is optional. `tk handover init` creates separate project metadata and is not needed to create a v3 plan.
+- The guide is static evidence, not proof of application behavior or setup success. Business meaning and operational ownership still require a knowledgeable person.
+- Generated personal workspace files are never replaced by `tk onboard workspace`; checkbox and structured progress synchronization retains conflict checks.
+- No target application, installer, migration, or external service is run during guide generation.
+
 ## 0.2.0 — Handover v3
 
 ### What's new

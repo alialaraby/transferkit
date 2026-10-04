@@ -2,7 +2,14 @@ import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 
 import { packageName as corePackageName } from "@transferkit/core";
-import type { Evidence, Finding } from "@transferkit/core";
+import type {
+  Evidence,
+  Finding,
+  OnboardingConceptEvidence,
+  OnboardingQueueEvidence,
+  OnboardingScheduledCall,
+  OnboardingTrace,
+} from "@transferkit/core";
 
 import {
   discoverRabbitMqConsumersInAst,
@@ -12,7 +19,14 @@ import {
   discoverHandoverContextInAst,
   type HandoverContextFinding,
 } from "./handover-context.js";
-import { createTypeScriptAst } from "./typescript-ast.js";
+import { createTypeScriptAst, type TypeScriptAst } from "./typescript-ast.js";
+import {
+  analyzeOnboardingRoutes,
+  type OnboardingTraceLimits,
+} from "./onboarding-trace.js";
+import { discoverOnboardingConceptsInAst } from "./onboarding-concepts.js";
+import { discoverOnboardingQueuesInAst } from "./onboarding-queues.js";
+import { discoverOnboardingScheduledCallsInAst } from "./onboarding-scheduled.js";
 import {
   discoverRouteTracesInAst,
   type RouteTraceFinding,
@@ -38,6 +52,8 @@ export { discoverHandoverContext } from "./handover-context.js";
 export type { RouteTraceFinding } from "./route-traces.js";
 export type { HandoverContextFinding } from "./handover-context.js";
 export { discoverRepositoryFiles } from "./repository-files.js";
+export { discoverOnboardingRepositoryNotes } from "./onboarding-repository-notes.js";
+export { discoverOnboardingStoryEvidence } from "./onboarding-story.js";
 export type {
   MessagingConsumerData,
   MessagingConsumerFinding,
@@ -180,20 +196,101 @@ export async function scanRepository(
   repositoryDirectory: string,
 ): Promise<RepositoryFinding[]> {
   const ast = createTypeScriptAst(repositoryDirectory);
+  const { findings } = await scanRepositoryInAst(ast);
+  return findings;
+}
+
+export async function scanOnboardingRepository(
+  repositoryDirectory: string,
+  selectedEntries:
+    | readonly string[]
+    | ((
+        findings: readonly RepositoryFinding[],
+        context: {
+          queues: OnboardingQueueEvidence;
+          scheduledCalls: readonly OnboardingScheduledCall[];
+          concepts: OnboardingConceptEvidence;
+        },
+      ) => readonly string[] | Promise<readonly string[]>),
+  limits: Partial<OnboardingTraceLimits> = {},
+): Promise<{
+  findings: RepositoryFinding[];
+  traces: OnboardingTrace[];
+  concepts: OnboardingConceptEvidence;
+  queues: OnboardingQueueEvidence;
+  scheduledCalls: OnboardingScheduledCall[];
+  loadedFiles: number;
+}> {
+  const ast = createTypeScriptAst(repositoryDirectory);
+  const { findings, contextFindings } = await scanRepositoryInAst(ast);
+  const queues = discoverOnboardingQueuesInAst(ast);
+  const scheduledCalls = discoverOnboardingScheduledCallsInAst(ast, findings);
+  const concepts = discoverOnboardingConceptsInAst(ast);
+  const entries =
+    typeof selectedEntries === "function"
+      ? await selectedEntries(findings, { queues, scheduledCalls, concepts })
+      : selectedEntries;
+  const selected = contextFindings.filter(
+    (route) =>
+      route.kind === "application.route" &&
+      entries.includes(`${route.data.controller}.${route.data.method}`),
+  );
+  for (const job of findings.filter((item) => item.kind === "scheduled-job")) {
+    const data = job.data as unknown as Record<string, unknown>;
+    const name = data.name;
+    if (typeof name !== "string" || !entries.includes(name)) continue;
+    const [controller, method] = name.split(".");
+    if (!controller || !method) continue;
+    selected.push({
+      id: `onboarding-entry:${job.id}`,
+      kind: "application.route",
+      data: {
+        controller,
+        method,
+        entryKind: "scheduled",
+        ...(typeof data.schedule === "string" ||
+        typeof data.schedule === "number"
+          ? { schedule: String(data.schedule) }
+          : {}),
+      },
+      evidence: job.evidence,
+    });
+  }
+  return {
+    findings,
+    traces: analyzeOnboardingRoutes(ast, selected, {
+      maxEntries: entries.length,
+      ...limits,
+    }),
+    concepts,
+    queues,
+    scheduledCalls,
+    loadedFiles: ast.sourceFiles.length,
+  };
+}
+
+async function scanRepositoryInAst(ast: TypeScriptAst): Promise<{
+  findings: RepositoryFinding[];
+  contextFindings: HandoverContextFinding[];
+}> {
+  const { repositoryDirectory } = ast;
   const [projectFindings, fileFindings] = await Promise.all([
     detectProject(repositoryDirectory),
     discoverRepositoryFiles(repositoryDirectory),
   ]);
   const contextFindings = discoverHandoverContextInAst(ast);
-  return [
-    ...projectFindings,
-    ...discoverRabbitMqConsumersInAst(ast),
-    ...discoverScheduledJobsInAst(ast),
-    ...discoverSourceFeaturesInAst(ast),
-    ...contextFindings,
-    ...discoverRouteTracesInAst(ast, contextFindings),
-    ...fileFindings,
-  ];
+  return {
+    contextFindings,
+    findings: [
+      ...projectFindings,
+      ...discoverRabbitMqConsumersInAst(ast),
+      ...discoverScheduledJobsInAst(ast),
+      ...discoverSourceFeaturesInAst(ast),
+      ...contextFindings,
+      ...discoverRouteTracesInAst(ast, contextFindings),
+      ...fileFindings,
+    ],
+  };
 }
 
 async function loadPackageJson(

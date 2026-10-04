@@ -1,0 +1,10 @@
+{
+  "name": "onboarding-setup-fixture",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/main.js",
+    "test": "node --test",
+    "migration:run": "node dist/migrate.js",
+    "seed": "node dist/seed.js"
+  }
+}
